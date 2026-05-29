@@ -165,7 +165,6 @@ export function OrcaHUD() {
               background: 'transparent',
               color: '#111118',
               fontFamily: "'Inter', system-ui, sans-serif",
-              fontSize: '13px',
               fontWeight: 500,
             }}
           />
