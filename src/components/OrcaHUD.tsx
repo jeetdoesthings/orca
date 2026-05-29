@@ -86,31 +86,12 @@ export function OrcaHUD() {
   return (
     <>
       {/* ORCA Branding — top left */}
-      <div style={{
-        position: 'fixed',
-        top: '24px',
-        left: '28px',
-        fontFamily: "'Inter', system-ui, sans-serif",
-        fontSize: '18px',
-        fontWeight: 800,
-        letterSpacing: '0.12em',
-        color: '#111118',
-        zIndex: 20,
-        pointerEvents: 'none',
-        userSelect: 'none',
-      }}>
+      <div className="orca-logo">
         ORCA
       </div>
 
       {/* Artist search — top right */}
-      <div style={{
-        position: 'fixed',
-        top: '22px',
-        right: '22px',
-        width: 'min(340px, calc(100vw - 44px))',
-        fontFamily: "'Inter', system-ui, sans-serif",
-        zIndex: 20,
-      }}>
+      <div className="orca-search-container">
         <div style={{
           position: 'relative',
           display: 'flex',
@@ -278,38 +259,14 @@ export function OrcaHUD() {
       </div>
 
       {/* Node count — bottom left */}
-      <div style={{
-        position: 'fixed',
-        bottom: '24px',
-        left: '24px',
-        fontFamily: "'Inter', system-ui, sans-serif",
-        fontSize: '11px',
-        color: 'rgba(0, 0, 0, 0.3)',
-        letterSpacing: '0.04em',
-        lineHeight: '1.6',
-        pointerEvents: 'none',
-        zIndex: 10,
-      }}>
+      <div className="orca-stats">
         <div>{exploredCount} explored · {frontierCount} frontier</div>
         <div>{edgeCount} connections</div>
       </div>
 
       {/* Expansion indicator */}
       {isExpanding && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontSize: '11px',
-          color: 'rgba(0, 0, 0, 0.35)',
-          letterSpacing: '0.04em',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          pointerEvents: 'none',
-          zIndex: 10,
-        }}>
+        <div className="orca-expansion-status">
           <div style={{
             width: '6px',
             height: '6px',
@@ -323,26 +280,7 @@ export function OrcaHUD() {
 
       {/* Active artist info — bottom center */}
       {activeNode && (
-        <div style={{
-          position: 'fixed',
-          bottom: '80px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          background: 'rgba(255, 255, 255, 0.88)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          border: '1px solid rgba(20, 20, 20, 0.08)',
-          borderRadius: '14px',
-          padding: '10px 18px',
-          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '4px',
-          pointerEvents: 'none',
-          zIndex: 10,
-        }}>
+        <div className="orca-active-artist-card">
           <span style={{ fontSize: '13px', fontWeight: 500, color: '#111118' }}>
             {activeNode.name}
           </span>
