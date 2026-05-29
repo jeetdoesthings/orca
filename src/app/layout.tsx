@@ -6,7 +6,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>ORCA — Your Musical Identity, Visualized</title>
+        <title>ORCA</title>
         <meta
           name="description"
           content="A living procedural music galaxy generated from canonical music metadata. Explore artist relationships as a spatial orca."
