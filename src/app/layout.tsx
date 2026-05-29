@@ -7,6 +7,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <title>ORCA</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <meta
           name="description"
           content="A living procedural music galaxy generated from canonical music metadata. Explore artist relationships as a spatial orca."

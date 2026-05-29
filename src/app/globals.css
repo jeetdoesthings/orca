@@ -208,3 +208,13 @@ canvas:active {
   }
 }
 
+/* Prevent auto-zooming on search input on mobile viewports */
+.orca-search-container input {
+  font-size: 14px !important;
+}
+
+@media (max-width: 640px) {
+  .orca-search-container input {
+    font-size: 16px !important; /* iOS/Android 16px font-size standard threshold to prevent focus zoom */
+  }
+}
