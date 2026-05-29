@@ -5,7 +5,7 @@
  * Composes all visualization layers and orchestrates data loading + layout.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -112,6 +112,23 @@ function OrcaScene() {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const focusedNodeId = useOrcaStore(s => s.focusedNodeId);
   const positions = useOrcaStore(s => s.nodePositions);
+
+  const { camera, size } = useThree();
+  const isMobile = size.width < 640;
+
+  // Responsive start position and zoom bounds
+  const minD = isMobile ? 3.6 : 2.2;
+  const maxD = isMobile ? 12.0 : 7.0;
+
+  useEffect(() => {
+    if (isMobile) {
+      camera.position.set(0, 0.2, 5.8); // Default starting position zoomed out on mobile
+    } else {
+      camera.position.set(0, 0.2, 3.8); // Desktop default
+    }
+    camera.lookAt(0, 0, 0);
+  }, [isMobile, camera]);
+
   const focusStateRef = useRef<{
     nodeId: string | null;
     start: THREE.Vector3;
@@ -133,7 +150,10 @@ function OrcaScene() {
     const focus = focusStateRef.current;
     if (focus.nodeId !== focusedNodeId) {
       const direction = new THREE.Vector3(...nodePosition).normalize();
-      const distance = Math.max(3.2, Math.min(5.2, camera.position.length()));
+      const minFocus = isMobile ? 4.6 : 3.2;
+      const maxFocus = isMobile ? 6.6 : 5.2;
+      const distance = Math.max(minFocus, Math.min(maxFocus, camera.position.length()));
+      
       focus.nodeId = focusedNodeId;
       focus.start.copy(camera.position);
       focus.end.copy(direction.multiplyScalar(distance));
@@ -170,8 +190,8 @@ function OrcaScene() {
         zoomSpeed={0.8}
         dampingFactor={0.07}
         enableDamping={true}
-        minDistance={2.2}
-        maxDistance={7}
+        minDistance={minD}
+        maxDistance={maxD}
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
       />

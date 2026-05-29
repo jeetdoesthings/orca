@@ -4,7 +4,7 @@
  * OrcaHUD — minimal heads-up display overlay on top of the canvas.
  * Shows node count, expansion state, and hovered artist info.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useOrcaStore } from '@/store/orca';
 
 export function OrcaHUD() {
@@ -16,6 +16,7 @@ export function OrcaHUD() {
   const setPinnedNode = useOrcaStore(s => s.setPinnedNode);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const edgeCount = graph?.edges.length ?? 0;
   const exploredCount = graph?.nodes.filter(n => n.state === 'explored').length ?? 0;
@@ -64,6 +65,7 @@ export function OrcaHUD() {
   // Clear search query if user manually pins a different node on the globe
   useEffect(() => {
     if (!pinnedNodeId || query === '') return;
+    if (document.activeElement === inputRef.current) return;
 
     const bestMatch = matches[0];
     if (!bestMatch || pinnedNodeId !== bestMatch.id) {
@@ -127,6 +129,7 @@ export function OrcaHUD() {
             }} />
           </span>
           <input
+            ref={inputRef}
             value={query}
             onChange={event => setQuery(event.target.value)}
             onKeyDown={event => {
