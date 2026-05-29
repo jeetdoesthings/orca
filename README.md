@@ -20,8 +20,7 @@ Instead of typing standard queries into an analytics dashboard, ORCA encourages 
 * **3D Layout & Physics**: React Three Fiber (R3F), `@react-three/drei`, `three.js`
 * **Layout Engine**: `d3-force-3d` (constraining node charging and link attraction forces onto a 3D sphere)
 * **State Management**: Zustand
-* **Primary Discovery Engine**: Last.fm API
-* **Canonical Metadata Enrichment**: MusicBrainz API (secondary, non-blocking layer)
+* **Primary Discovery Engine**: Last.fm API (Core data fetching, spatial layouts, progressive expansion, and genre taxonomy)
 
 ---
 
@@ -74,11 +73,6 @@ cd musicorca
 Create a `.env` file in the root directory and add your Last.fm API Key:
 ```env
 LASTFM_API_KEY=your_lastfm_api_key_here
-LASTFM_SHARED_SECRET=your_lastfm_shared_secret_here
-SPOTIFY_CLIENT_ID=optional_spotify_client_id
-SPOTIFY_CLIENT_SECRET=optional_spotify_client_secret
-NEXTAUTH_URL=http://127.0.0.1:3000
-NEXTAUTH_SECRET=generate_any_secure_string_here
 ```
 
 ### 3. Install Dependencies
