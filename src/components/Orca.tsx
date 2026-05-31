@@ -121,7 +121,7 @@ function OrcaScene({
   const focusedNodeId = useOrcaStore(s => s.focusedNodeId);
   const positions = useOrcaStore(s => s.nodePositions);
 
-  const { camera, size } = useThree();
+  const { camera, size, gl } = useThree();
   const isMobile = size.width < 640;
 
   // Responsive start position and zoom bounds — allow zooming extremely close to smaller nodes (surface is at R = 1.65)
@@ -136,6 +136,54 @@ function OrcaScene({
     }
     camera.lookAt(0, 0, 0);
   }, [isMobile, camera]);
+
+  // ── High-Precision Trackpad/Touchpad Swipe-to-Rotate Interaction ──
+  // Translates two-finger trackpad scrolls (wheel event deltaX/deltaY) into seamless globe rotation.
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const onWheel = (e: WheelEvent) => {
+      // If holding ctrlKey, it is a touchpad pinch-to-zoom gesture; let OrbitControls handle it normally
+      if (e.ctrlKey) return;
+
+      const controls = controlsRef.current;
+      if (!controls) return;
+
+      // Intercept and prevent the default browser scroll and OrbitControls dolly-zoom
+      e.preventDefault();
+
+      const dx = e.deltaX;
+      const dy = e.deltaY;
+
+      // Extract current camera spherical coordinates relative to OrbitControls target (0,0,0)
+      const offset = new THREE.Vector3().copy(camera.position).sub(controls.target);
+      let theta = Math.atan2(offset.x, offset.z);
+      let phi = Math.atan2(Math.sqrt(offset.x * offset.x + offset.z * offset.z), offset.y);
+      const radius = offset.length();
+
+      // Horizontal swipe (deltaX) rotates azimuthally (theta)
+      // Vertical swipe (deltaY) rotates polar-wise (phi)
+      const rotationSpeed = 0.0016; 
+      theta += dx * rotationSpeed;
+      phi += dy * rotationSpeed;
+
+      // Restrict polar angle slightly below poles to prevent gimbal lock or camera flipping
+      phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi));
+
+      // Reconstruct Cartesian camera coordinates from new spherical angles
+      camera.position.x = controls.target.x + radius * Math.sin(phi) * Math.sin(theta);
+      camera.position.y = controls.target.y + radius * Math.cos(phi);
+      camera.position.z = controls.target.z + radius * Math.sin(phi) * Math.cos(theta);
+
+      camera.lookAt(controls.target);
+      controls.update();
+    };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      canvas.removeEventListener('wheel', onWheel);
+    };
+  }, [gl, camera]);
 
   const focusStateRef = useRef<{
     nodeId: string | null;
