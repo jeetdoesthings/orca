@@ -153,6 +153,30 @@ const ALIAS_MAP: Record<string, string> = {
 };
 
 /**
+ * A highly aggressive normalisation function for comparison and deduplication.
+ * Maps symbols like $ -> s, & -> and, + -> and, and removes all non-alphanumeric characters.
+ */
+export function getStandardisedComparisonKey(name: string): string {
+  if (!name) return '';
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\$/g, 's')
+    .replace(/&/g, 'and')
+    .replace(/\+/g, 'and')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// Pre-compute a standardised lookup map for faster alias resolution at runtime
+const STANDARDISED_ALIAS_MAP: Record<string, string> = {};
+Object.entries(ALIAS_MAP).forEach(([key, value]) => {
+  const stdKey = getStandardisedComparisonKey(key);
+  if (stdKey) {
+    STANDARDISED_ALIAS_MAP[stdKey] = value;
+  }
+});
+
+/**
  * Normalises an artist name for lookup/comparison.
  * Lowercases, strips trailing/leading spaces, and collapses extra whitespace.
  */
@@ -171,11 +195,11 @@ export function normaliseArtistName(name: string): string {
  */
 export function getCanonicalArtistName(name: string): string {
   const cleanName = name.trim();
-  const norm = normaliseArtistName(cleanName);
+  const stdKey = getStandardisedComparisonKey(cleanName);
 
-  // 1. Direct exact alias match
-  if (ALIAS_MAP[norm]) {
-    return ALIAS_MAP[norm];
+  // 1. Standardised exact alias match (covers "travi$ scott" -> "Travis Scott", etc.)
+  if (STANDARDISED_ALIAS_MAP[stdKey]) {
+    return STANDARDISED_ALIAS_MAP[stdKey];
   }
 
   // 2. Intelligent collaboration splitting
@@ -186,10 +210,10 @@ export function getCanonicalArtistName(name: string): string {
     
     // Check if any part in the collaboration is a canonical artist in our ALIAS_MAP
     for (const part of parts) {
-      const partNorm = normaliseArtistName(part);
-      if (ALIAS_MAP[partNorm]) {
-        console.log(`[IDENTITY] Resolved collaboration "${cleanName}" -> Canonical Artist "${ALIAS_MAP[partNorm]}"`);
-        return ALIAS_MAP[partNorm];
+      const partStdKey = getStandardisedComparisonKey(part);
+      if (STANDARDISED_ALIAS_MAP[partStdKey]) {
+        console.log(`[IDENTITY] Resolved collaboration "${cleanName}" -> Canonical Artist "${STANDARDISED_ALIAS_MAP[partStdKey]}"`);
+        return STANDARDISED_ALIAS_MAP[partStdKey];
       }
     }
     
@@ -209,5 +233,6 @@ export function getCanonicalArtistName(name: string): string {
  */
 export function getCanonicalArtistId(name: string, _mbid?: string): string {
   const canonical = getCanonicalArtistName(name);
-  return 'lastfm-' + normaliseArtistName(canonical).replace(/[^a-z0-9]/g, '-');
+  const stdKey = getStandardisedComparisonKey(canonical);
+  return 'lastfm-' + stdKey;
 }

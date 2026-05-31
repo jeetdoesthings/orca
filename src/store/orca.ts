@@ -26,6 +26,7 @@ interface OrcaStore {
 
   // ── Loading ──
   isLoading: boolean;
+  preloadsLoaded: boolean;
   error: string | null;
 
   // ── Actions ──
@@ -41,6 +42,7 @@ interface OrcaStore {
   setHoveredNode: (id: string | null) => void;
   setPinnedNode: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
+  setPreloadsLoaded: (loaded: boolean) => void;
   setError: (error: string | null) => void;
 }
 
@@ -57,6 +59,7 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   hoveredNodeId: null,
   pinnedNodeId: null,
   isLoading: false,
+  preloadsLoaded: false,
   error: null,
 
   // Actions
@@ -91,5 +94,6 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setHoveredNode: (id) => set({ hoveredNodeId: id }),
   setPinnedNode: (id) => set({ pinnedNodeId: id }),
   setLoading: (loading) => set({ isLoading: loading }),
+  setPreloadsLoaded: (loaded) => set({ preloadsLoaded: loaded }),
   setError: (error) => set({ error }),
 }));
