@@ -412,8 +412,67 @@ function buildGenreRegions(nodes: OrcaNode[]) {
     .sort((a, b) => b.nodeCount - a.nodeCount);
 }
 
+// ── Spotify Expansion Integration ──
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || '';
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || '';
+
+let cachedSpotifyToken = '';
+let spotifyTokenExpiresAt = 0;
+
+async function getSpotifyToken(): Promise<string> {
+  if (cachedSpotifyToken && Date.now() < spotifyTokenExpiresAt) return cachedSpotifyToken;
+  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
+    throw new Error('Spotify credentials missing in environment.');
+  }
+  const credentials = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64');
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+  if (!res.ok) throw new Error(`Spotify token error: ${res.status}`);
+  const data = await res.json();
+  cachedSpotifyToken = data.access_token;
+  spotifyTokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
+  return cachedSpotifyToken;
+}
+
+async function fetchSpotifyArtist(name: string): Promise<{ popularity: number; genres: string[]; imageUrl: string; id: string } | null> {
+  try {
+    const token = await getSpotifyToken();
+    const searchParams = new URLSearchParams({ q: name, type: 'artist', limit: '1' });
+    const res = await fetch(`https://api.spotify.com/v1/search?${searchParams.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const artist = data?.artists?.items?.[0];
+    if (!artist) return null;
+
+    const images = artist.images || [];
+    const imageUrl =
+      images.find((img: any) => img.width >= 150 && img.width <= 320)?.url ??
+      images[images.length - 1]?.url ??
+      '';
+
+    return {
+      id: artist.id,
+      popularity: artist.popularity,
+      genres: artist.genres,
+      imageUrl,
+    };
+  } catch (err) {
+    console.warn(`Spotify lookup failed in expansion for "${name}":`, err);
+    return null;
+  }
+}
+
 /**
- * Dynamically expands the graph by fetching similar artists from Last.fm.
+ * Dynamically expands the graph by fetching similar artists from Spotify's database.
+ * Resolves artist relationships from Last.fm seed list, then populates them with Spotify's live stats and images.
  */
 export async function expandLastFmGraph(artistIds: string[], maxSimilar = 5): Promise<{
   nodes: OrcaNode[];
@@ -429,30 +488,37 @@ export async function expandLastFmGraph(artistIds: string[], maxSimilar = 5): Pr
     const existing = graph.nodes.find(n => n.id === id);
     if (!existing) continue;
 
-    // Fetch similar artists from Last.fm
+    // Fetch similar artists from Last.fm seed
     const similars = await fetchLastFmSimilarArtists(existing.name, maxSimilar);
     if (!similars) continue;
 
     for (const sim of similars) {
       const simName = getCanonicalArtistName(sim.name);
-      const simId = getCanonicalArtistId(simName, sim.mbid);
+      
+      // Query Spotify for live stats and image
+      const spotifyData = await fetchSpotifyArtist(simName);
+      
+      // Use Spotify ID as canonical node ID
+      const simId = spotifyData ? `spotify-${spotifyData.id}` : getCanonicalArtistId(simName, sim.mbid);
 
       if (!nodeSet.has(simId)) {
         nodeSet.add(simId);
         
-        // Build new frontier node
         const primaryGenre = existing.genres[0] || 'pop';
-        const pop = Math.max(10, existing.popularity - 10);
+        const pop = spotifyData ? spotifyData.popularity : Math.max(10, existing.popularity - 10);
+        const genresList = spotifyData && spotifyData.genres.length > 0 ? spotifyData.genres : [primaryGenre];
+        const imageUrl = spotifyData ? spotifyData.imageUrl : '';
         
+        // Build new Spotify-populated frontier node
         const newNode: OrcaNode = {
           id: simId,
           name: simName,
-          genres: [primaryGenre],
+          genres: genresList,
           popularity: pop,
-          imageUrl: '',
-          weight: 0.08,
+          imageUrl: imageUrl, // Pre-cached downscaled Spotify image!
+          weight: Math.max(0.2, pop / 100),
           state: 'frontier',
-          audioSignature: generateMockAudioSignature(simName, pop, [primaryGenre]),
+          audioSignature: generateMockAudioSignature(simName, pop, genresList),
         };
         newNodes.push(newNode);
       }
@@ -466,7 +532,8 @@ export async function expandLastFmGraph(artistIds: string[], maxSimilar = 5): Pr
       });
     }
     
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // Tiny throttle to respect Spotify search limits
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   return { nodes: newNodes, edges: newEdges };

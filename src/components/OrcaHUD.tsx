@@ -6,11 +6,12 @@
  */
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useOrcaStore } from '@/store/orca';
+import { getGenreColor } from '@/lib/graph/genre-normaliser';
+import { getCachedArtistData } from './orca/ArtistImageLayer';
 
 export function OrcaHUD() {
   const graph = useOrcaStore(s => s.graph);
   const isExpanding = useOrcaStore(s => s.isExpanding);
-  const hoveredNodeId = useOrcaStore(s => s.hoveredNodeId);
   const pinnedNodeId = useOrcaStore(s => s.pinnedNodeId);
   const setFocusedNode = useOrcaStore(s => s.setFocusedNode);
   const setPinnedNode = useOrcaStore(s => s.setPinnedNode);
@@ -34,15 +35,62 @@ export function OrcaHUD() {
         const aStarts = aName.startsWith(normalizedQuery) ? 0 : 1;
         const bStarts = bName.startsWith(normalizedQuery) ? 0 : 1;
         if (aStarts !== bStarts) return aStarts - bStarts;
-        return b.weight - a.weight || b.popularity - a.popularity;
+        return b.weight - a.weight;
       })
       .slice(0, 6);
   }, [graph, normalizedQuery]);
 
-  const activeNodeId = hoveredNodeId ?? pinnedNodeId;
-  const activeNode = activeNodeId
-    ? graph?.nodes.find(n => n.id === activeNodeId)
+  // Bottom card only shows for pinned state (hover has the floating 3D card)
+  const pinnedNode = pinnedNodeId
+    ? graph?.nodes.find(n => n.id === pinnedNodeId)
     : null;
+
+  // Resolve pinned artist image instantly
+  const [pinnedImageUrl, setPinnedImageUrl] = useState('');
+
+  useEffect(() => {
+    if (!pinnedNode) {
+      setPinnedImageUrl('');
+      return;
+    }
+
+    // 1. Graph Node Cached URL (Instant, local resolution)
+    if (pinnedNode.imageUrl) {
+      const proxiedUrl = pinnedNode.imageUrl.startsWith('/api/') || pinnedNode.imageUrl.startsWith('data:')
+        ? pinnedNode.imageUrl
+        : `/api/orca/image-proxy?url=${encodeURIComponent(pinnedNode.imageUrl)}`;
+      setPinnedImageUrl(proxiedUrl);
+      return;
+    }
+
+    // 2. Image Layer Cache hit
+    const cached = getCachedArtistData(pinnedNode.name);
+    if (cached && cached.status === 'loaded' && cached.imageUrl) {
+      setPinnedImageUrl(cached.imageUrl);
+      return;
+    }
+
+    // 3. Next.js server route fetch with cancellation support
+    let cancelled = false;
+    fetch(`/api/orca/image?artist=${encodeURIComponent(pinnedNode.name)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data.imageUrl) {
+          setPinnedImageUrl(data.imageUrl);
+          pinnedNode.imageUrl = data.imageUrl; // save on node
+        } else {
+          setPinnedImageUrl('');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPinnedImageUrl('');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pinnedNode]);
 
   // Reset keyboard highlight index when search matches list changes
   useEffect(() => {
@@ -244,7 +292,7 @@ export function OrcaHUD() {
                   textOverflow: 'ellipsis',
                   maxWidth: '100%',
                 }}>
-                  {node.genres.slice(0, 3).join(' · ') || `${node.popularity} popularity`}
+                  {node.genres.slice(0, 3).join(' · ')}
                 </span>
               </button>
             )) : (
@@ -280,21 +328,37 @@ export function OrcaHUD() {
         </div>
       )}
 
-      {/* Active artist info — bottom center */}
-      {activeNode && (
+      {/* Pinned artist info — bottom center (with profile image) */}
+      {pinnedNode && (
         <div className="orca-active-artist-card">
-          <span style={{ fontSize: '13px', fontWeight: 500, color: '#111118' }}>
-            {activeNode.name}
-          </span>
-          {activeNode.genres.length > 0 && (
-            <span style={{
-              fontSize: '10px',
-              color: 'rgba(0, 0, 0, 0.4)',
-              letterSpacing: '0.03em',
-            }}>
-              {activeNode.genres.slice(0, 3).join(' · ')}
-            </span>
+          {pinnedImageUrl ? (
+            <img
+              src={pinnedImageUrl}
+              alt={pinnedNode.name}
+              className="orca-active-artist-card-pfp"
+            />
+          ) : (
+            <div
+              className="orca-active-artist-card-pfp-placeholder"
+              style={{ background: getGenreColor((pinnedNode.genres[0] || '').toLowerCase()) }}
+            >
+              {pinnedNode.name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}
+            </div>
           )}
+          <div className="orca-active-artist-card-info">
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#111118' }}>
+              {pinnedNode.name}
+            </span>
+            {pinnedNode.genres.length > 0 && (
+              <span style={{
+                fontSize: '10px',
+                color: 'rgba(0, 0, 0, 0.4)',
+                letterSpacing: '0.03em',
+              }}>
+                {pinnedNode.genres.slice(0, 3).join(' · ')}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

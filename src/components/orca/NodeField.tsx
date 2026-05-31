@@ -98,7 +98,7 @@ export function NodeField() {
       const moved = Math.sqrt(dx * dx + dy * dy);
       const elapsed = Date.now() - pointerDownTime.current;
       // Tap = short press + minimal movement
-      if (moved < 4 && elapsed < 250) {
+      if (moved < 15 && elapsed < 250) {
         if (closestNodeRef.current) {
           const currentPinned = useOrcaStore.getState().pinnedNodeId;
           if (currentPinned === closestNodeRef.current) {
@@ -304,7 +304,7 @@ export function NodeField() {
         frustumCulled={false}
       />
       {/* Invisible hit sphere — no event handlers, pure raycasting target */}
-      <mesh ref={hitSphereRef} visible={false}>
+      <mesh ref={hitSphereRef} visible={true}>
         <sphereGeometry args={[R * 1.05, 32, 16]} />
         <meshBasicMaterial visible={false} />
       </mesh>

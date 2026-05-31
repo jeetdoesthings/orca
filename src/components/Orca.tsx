@@ -4,7 +4,7 @@
  * Orca — root Three.js canvas component.
  * Composes all visualization layers and orchestrates data loading + layout.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -14,11 +14,15 @@ import { NodeField } from './orca/NodeField';
 import { EdgeField } from './orca/EdgeField';
 import { BackgroundField } from './orca/BackgroundField';
 import { NodeLabels } from './orca/NodeLabels';
+import { ArtistImageLayer } from './orca/ArtistImageLayer';
+import { ArtistHoverCard } from './orca/ArtistHoverCard';
 import { OrcaHUD } from './OrcaHUD';
 import { useOrcaStore } from '@/store/orca';
 import { buildGraph } from '@/lib/graph/builder';
 import { getExpansionCandidates } from '@/lib/graph/expander';
 import type { ForceLayout } from '@/lib/graph/types';
+import { persistentImageCache } from '@/lib/imageCache';
+import { LoadingOverlay } from './orca/LoadingOverlay';
 
 const LOADING_MESSAGES = [
   'Following hidden currents...',
@@ -82,9 +86,9 @@ function RotatingLoadingMessage() {
           return next;
         });
         setFade('in');
-      }, 500); // 500ms to fade out
+      }, 500); // 500ms buffer, old message fully faded out at 350ms
 
-    }, 3500); // rotate every 3.5 seconds
+    }, 3800); // rotate every 3.8 seconds
 
     return () => clearInterval(interval);
   }, []);
@@ -97,7 +101,7 @@ function RotatingLoadingMessage() {
       textTransform: 'uppercase',
       color: 'rgba(0, 0, 0, 0.4)',
       opacity: fade === 'in' ? 1 : 0,
-      transition: 'opacity 0.5s ease',
+      transition: 'opacity 350ms cubic-bezier(0.4, 0, 0.2, 1)',
       textAlign: 'center',
     }}>
       {LOADING_MESSAGES[msgIndex]}
@@ -106,7 +110,11 @@ function RotatingLoadingMessage() {
 }
 
 /** Inner scene component that uses R3F hooks */
-function OrcaScene() {
+function OrcaScene({
+  onImageResolved,
+}: {
+  onImageResolved: (artistName: string, hasImage: boolean) => void;
+}) {
   // Gentle ongoing simulation tick for living motion
   // Removed useFrame tick to avoid render loop conflicts — layout is stepped in the effect
   const controlsRef = useRef<OrbitControlsImpl>(null);
@@ -116,8 +124,8 @@ function OrcaScene() {
   const { camera, size } = useThree();
   const isMobile = size.width < 640;
 
-  // Responsive start position and zoom bounds
-  const minD = isMobile ? 3.6 : 2.2;
+  // Responsive start position and zoom bounds — allow zooming extremely close to smaller nodes (surface is at R = 1.65)
+  const minD = isMobile ? 1.95 : 1.85;
   const maxD = isMobile ? 12.0 : 7.0;
 
   useEffect(() => {
@@ -202,6 +210,8 @@ function OrcaScene() {
         <BackgroundField />
         <EdgeField />
         <NodeField />
+        <ArtistImageLayer onImageResolved={onImageResolved} />
+        <ArtistHoverCard />
         <NodeLabels />
       </group>
     </>
@@ -218,9 +228,67 @@ export function Orca() {
   const setError = useOrcaStore(s => s.setError);
   const isLoading = useOrcaStore(s => s.isLoading);
   const error = useOrcaStore(s => s.error);
+  const graph = useOrcaStore(s => s.graph);
+  const preloadsLoaded = useOrcaStore(s => s.preloadsLoaded);
 
   const layoutRef = useRef<ForceLayout | null>(null);
   const expansionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [loadedCount, setLoadedCount] = useState(0);
+  const [currentArtistName, setCurrentArtistName] = useState('');
+  const [loadingPhase, setLoadingPhase] = useState<'loading' | 'fading' | 'loaded'>('loading');
+
+  const PRELOAD_TARGET = graph ? Math.min(60, graph.nodes.length) : 60;
+
+  // Open IndexedDB persistent cache immediately on component mount
+  useEffect(() => {
+    persistentImageCache.open().then(() => {
+      persistentImageCache.evictIfNeeded(); // silent housekeeping
+    });
+  }, []);
+
+  // Handle smooth transition from loading overlay
+  useEffect(() => {
+    if ((preloadsLoaded || loadedCount >= PRELOAD_TARGET) && loadingPhase === 'loading') {
+      setLoadingPhase('fading');
+      
+      // Update global store loading completed state
+      useOrcaStore.getState().setPreloadsLoaded(true);
+    }
+  }, [loadedCount, preloadsLoaded, loadingPhase, PRELOAD_TARGET]);
+
+  // Complete transition to loaded after fade animation settles (Section 5.9)
+  useEffect(() => {
+    if (loadingPhase === 'fading') {
+      const timer = setTimeout(() => {
+        setLoadingPhase('loaded');
+      }, 850); // 800ms transition + 50ms buffer
+      return () => clearTimeout(timer);
+    }
+  }, [loadingPhase]);
+
+  const onImageResolved = useCallback((artistName: string, hasImage: boolean) => {
+    setLoadedCount(prev => prev + 1);
+    if (hasImage) {
+      setCurrentArtistName(artistName);
+    }
+  }, []);
+
+  async function assessCacheWarmth(nodes: any[]): Promise<'hot' | 'warm' | 'cold'> {
+    await persistentImageCache.open();
+
+    const topArtistIds = [...nodes]
+      .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+      .slice(0, 60)
+      .map(a => a.id);
+
+    const cachedCount = await persistentImageCache.countCached(topArtistIds);
+    const ratio = cachedCount / topArtistIds.length;
+
+    if (ratio >= 0.9) return 'hot';   // 90%+ cached — near-instant
+    if (ratio >= 0.5) return 'warm';  // 50%+ cached — fast
+    return 'cold';                    // < 50% cached — normal flow
+  }
 
   // ── Progressive expansion ──
   async function startExpansion() {
@@ -289,6 +357,7 @@ export function Orca() {
     let cancelled = false;
 
     async function loadOrca() {
+      const startTime = Date.now();
       setLoading(true);
       setError(null);
 
@@ -324,7 +393,20 @@ export function Orca() {
         // Set graph and positions in store
         setGraph(orcaGraph);
         updatePositions(layout.getPositions());
-        setLoading(false);
+
+        // Assess cache warmth BEFORE starting the queue gates (Section 8)
+        const warmth = await assessCacheWarmth(orcaGraph.nodes);
+        if (warmth === 'hot') {
+          setLoadingPhase('loaded');
+          useOrcaStore.getState().setPreloadsLoaded(true);
+        } else {
+          setLoadingPhase('loading');
+          useOrcaStore.getState().setPreloadsLoaded(false);
+        }
+
+        if (!cancelled) {
+          setLoading(false);
+        }
 
         // Start progressive expansion after a short delay
         if (!cancelled) {
@@ -351,98 +433,109 @@ export function Orca() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Loading State ──
-  if (isLoading) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: "'Inter', system-ui, sans-serif",
-        gap: '24px',
-      }}>
-        <RotatingLoadingMessage />
-        <div style={{
-          width: '100px',
-          height: '1px',
-          background: 'rgba(0, 0, 0, 0.06)',
-          borderRadius: '1px',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%',
-            background: 'rgba(0, 0, 0, 0.3)',
-            animation: 'loadingBar 1.8s ease-in-out infinite',
-          }} />
-        </div>
-        <style>{`
-          @keyframes loadingBar {
-            0% { width: 0%; margin-left: 0%; }
-            50% { width: 50%; margin-left: 25%; }
-            100% { width: 0%; margin-left: 100%; }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
-  // ── Error State ──
-  if (error) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: "'Inter', system-ui, sans-serif",
-        gap: '16px',
-      }}>
-        <div style={{ fontSize: '13px', color: '#c44' }}>{error}</div>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            background: 'rgba(0,0,0,0.06)',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 20px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div style={{
       width: '100vw',
       height: '100vh',
       background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
       position: 'relative',
+      overflow: 'hidden',
     }}>
-      <Canvas
-        camera={{ position: [0, 0.2, 3.8], fov: 45, near: 0.1, far: 100 }}
-        gl={{
-          antialias: true,
-          alpha: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.0,
-        }}
-        style={{ background: 'transparent' }}
-      >
-        <OrcaScene />
-      </Canvas>
-      <OrcaHUD />
+      {graph && (
+        <Canvas
+          camera={{ position: [0, 0.2, 3.8], fov: 45, near: 0.1, far: 100 }}
+          gl={{
+            antialias: true,
+            alpha: true,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMappingExposure: 1.0,
+          }}
+          style={{ background: 'transparent' }}
+        >
+          <OrcaScene onImageResolved={onImageResolved} />
+        </Canvas>
+      )}
+
+      {graph && loadingPhase === 'loaded' && <OrcaHUD />}
+
+      {/* Loading Overlay */}
+      {loadingPhase !== 'loaded' && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Inter', system-ui, sans-serif",
+          gap: '24px',
+          zIndex: 9999,
+          opacity: loadingPhase === 'loading' ? 1 : 0,
+          transition: 'opacity 800ms cubic-bezier(0.4, 0, 0.2, 1)',
+          pointerEvents: loadingPhase === 'loading' ? 'auto' : 'none',
+        }}>
+          <RotatingLoadingMessage />
+          <div style={{
+            width: '100px',
+            height: '1px',
+            background: 'rgba(0, 0, 0, 0.06)',
+            borderRadius: '1px',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%',
+              background: 'rgba(0, 0, 0, 0.3)',
+              animation: 'loadingBar 1.8s ease-in-out infinite',
+            }} />
+          </div>
+          <style>{`
+            @keyframes loadingBar {
+              0% { width: 0%; margin-left: 0%; }
+              50% { width: 50%; margin-left: 25%; }
+              100% { width: 0%; margin-left: 100%; }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Error Overlay */}
+      {error && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Inter', system-ui, sans-serif",
+          gap: '16px',
+          zIndex: 10000,
+        }}>
+          <div style={{ fontSize: '13px', color: '#c44' }}>{error}</div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: 'rgba(0,0,0,0.06)',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 20px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 }
