@@ -156,6 +156,17 @@ function processLoadQueue(genreColorMap: Map<string, string>) {
         })
         .then(bmp => {
           const tex = new THREE.Texture(bmp);
+          
+          // Apply aspect-ratio crop (CSS object-fit: cover mapping) to prevent stretching
+          const aspect = bmp.width / bmp.height;
+          if (aspect > 1) {
+            tex.repeat.set(1 / aspect, 1);
+            tex.offset.set((1 - 1 / aspect) / 2, 0);
+          } else if (aspect < 1) {
+            tex.repeat.set(1, aspect);
+            tex.offset.set(0, (1 - aspect) / 2);
+          }
+
           tex.needsUpdate = true;
           tex.colorSpace = THREE.SRGBColorSpace;
           updated.texture = tex;
@@ -196,6 +207,17 @@ function processLoadQueue(genreColorMap: Map<string, string>) {
           return createImageBitmap(cachedBlob, { imageOrientation: 'flipY' })
             .then(bmp => {
               const tex = new THREE.Texture(bmp);
+              
+              // Apply aspect-ratio crop (CSS object-fit: cover mapping) to prevent stretching
+              const aspect = bmp.width / bmp.height;
+              if (aspect > 1) {
+                tex.repeat.set(1 / aspect, 1);
+                tex.offset.set((1 - 1 / aspect) / 2, 0);
+              } else if (aspect < 1) {
+                tex.repeat.set(1, aspect);
+                tex.offset.set(0, (1 - aspect) / 2);
+              }
+
               tex.needsUpdate = true;
               tex.colorSpace = THREE.SRGBColorSpace;
               entry.texture = tex;
