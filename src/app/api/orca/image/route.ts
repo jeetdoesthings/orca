@@ -282,7 +282,7 @@ async function resolveWithCoalescing(
     // Prioritize Deezer as the primary engine to ensure accurate, high-quality music catalog images 
     // and completely bypass general Wikipedia search query collisions (like anatomy photos for the band "Bicep"!).
     const engines: Array<'spotify' | 'musicbrainz' | 'wikipedia' | 'deezer'> =
-      ['deezer', 'spotify', 'wikipedia', 'musicbrainz'];
+      ['spotify', 'deezer', 'wikipedia', 'musicbrainz'];
 
     for (const engine of engines) {
       const resolvedUrl = await resolveImageByEngine(engine, artistName);
