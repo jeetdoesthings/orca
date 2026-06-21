@@ -1,4 +1,5 @@
 import './globals.css';
+import { SessionProvider } from '@/components/SessionProvider';
 
 export default function RootLayout({
   children,
@@ -12,6 +13,7 @@ export default function RootLayout({
           name="description"
           content="A living procedural music galaxy generated from canonical music metadata. Explore artist relationships as a spatial orca."
         />
+        <link rel="icon" href="/ORCA_logo.png" type="image/png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -20,8 +22,9 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );
 }
+

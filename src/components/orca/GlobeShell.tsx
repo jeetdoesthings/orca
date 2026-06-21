@@ -22,7 +22,8 @@ export function GlobeShell() {
       varying vec3 vNormal;
       varying vec3 vViewDir;
       void main() {
-        vNormal = normalize(normalMatrix * normal);
+        // Transform normal to world space for coordinate system consistency
+        vNormal = normalize(vec3(modelMatrix * vec4(normal, 0.0)));
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
         vViewDir = normalize(cameraPosition - worldPos.xyz);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -32,10 +33,19 @@ export function GlobeShell() {
       varying vec3 vViewDir;
       void main() {
         float facing = dot(vNormal, vViewDir);
-        float rim = pow(1.0 - max(facing, 0.0), 3.5);
-        // Very subtle rim — just enough to see the sphere edge
-        float alpha = rim * 0.12;
-        gl_FragColor = vec4(0.7, 0.7, 0.72, alpha);
+        // Soft, rich frosted glassmorphism blur simulation
+        // Lower exponent makes the frost wider and spread further inward
+        float rim = pow(1.0 - max(facing, 0.0), 1.6);
+        
+        // Deeper interior volume fill for an enhanced blur/frost appearance
+        float interior = (1.0 - max(facing, 0.0)) * 0.16;
+        
+        float alpha = rim * 0.45 + interior;
+        
+        // Pure translucent white glass color
+        vec3 glassColor = vec3(0.98, 0.99, 1.0);
+        
+        gl_FragColor = vec4(glassColor, alpha);
       }`,
     transparent: true,
     depthWrite: false,
@@ -50,7 +60,8 @@ export function GlobeShell() {
       varying vec3 vNormal;
       varying vec3 vViewDir;
       void main() {
-        vNormal = normalize(normalMatrix * normal);
+        // Transform normal to world space for coordinate system consistency
+        vNormal = normalize(vec3(modelMatrix * vec4(normal, 0.0)));
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vViewDir = normalize(cameraPosition - wp.xyz);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -60,7 +71,7 @@ export function GlobeShell() {
       varying vec3 vViewDir;
       void main() {
         float rim = pow(1.0 - max(dot(vNormal, vViewDir), 0.0), 4.0);
-        gl_FragColor = vec4(1.0, 1.0, 1.0, rim * 0.12);
+        gl_FragColor = vec4(1.0, 1.0, 1.0, rim * 0.22); // soft, gorgeous outer atmospheric halo
       }`,
     transparent: true,
     depthWrite: false,
@@ -72,7 +83,7 @@ export function GlobeShell() {
     uniforms: {
       uTime: { value: 0 },
       uColor: { value: new THREE.Color(0.08, 0.08, 0.08) },
-      uBase: { value: 0.018 },
+      uBase: { value: 0.012 }, // Made much lighter per user feedback
     },
     vertexShader: `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `
@@ -137,7 +148,7 @@ export function GlobeShell() {
         float b = sin(uTime * 0.5 + n.y * 2.5) * 0.002;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position + n * b, 1.0);
       }`,
-    fragmentShader: `void main() { gl_FragColor = vec4(0.08, 0.08, 0.08, 0.012); }`,
+    fragmentShader: `void main() { gl_FragColor = vec4(0.08, 0.08, 0.08, 0.01); }`, // Made much lighter (from 0.04 to 0.01)
     transparent: true,
     depthWrite: false,
     blending: THREE.NormalBlending,

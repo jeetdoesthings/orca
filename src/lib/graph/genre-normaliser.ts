@@ -45,44 +45,86 @@ export type InternalGenre =
 export const GENRE_NORMALISER: Record<string, InternalGenre> = {
   // Hip-Hop & Rap
   'hip-hop': 'hip-hop', 'hip hop': 'hip-hop', 'rap': 'hip-hop',
-  'trap': 'trap', 'trap music': 'trap',
-  'drill': 'drill', 'uk drill': 'drill', 'chicago drill': 'drill',
+  'conscious hip hop': 'hip-hop', 'gangsta rap': 'hip-hop', 'east coast hip hop': 'hip-hop',
+  'west coast hip hop': 'hip-hop', 'southern hip hop': 'hip-hop', 'melodic rap': 'hip-hop',
+  'underground hip hop': 'hip-hop', 'old school hip hop': 'hip-hop',
+  'trap': 'trap', 'trap music': 'trap', 'trap soul': 'trap', 'pluggnb': 'trap',
+  'drill': 'drill', 'uk drill': 'drill', 'chicago drill': 'drill', 'brooklyn drill': 'drill',
 
   // Electronic
   'edm': 'edm', 'electronic dance music': 'edm', 'electronic': 'edm', 'electronica': 'edm',
+  'electro': 'edm', 'future bass': 'edm', 'dubstep': 'edm', 'brostep': 'edm',
+  'complextro': 'edm', 'big room': 'edm', 'hardstyle': 'edm',
   'house': 'house', 'deep house': 'house', 'progressive house': 'house', 'acid house': 'house',
-  'techno': 'techno', 'minimal techno': 'techno',
-  'trance': 'trance', 'psytrance': 'trance',
+  'tropical house': 'house', 'tech house': 'house', 'electro house': 'house', 'slap house': 'house',
+  'techno': 'techno', 'minimal techno': 'techno', 'detroit techno': 'techno', 'industrial techno': 'techno',
+  'trance': 'trance', 'psytrance': 'trance', 'progressive trance': 'trance', 'uplifting trance': 'trance',
   'drum and bass': 'drum-and-bass', 'drum & bass': 'drum-and-bass', 'dnb': 'drum-and-bass',
+  'liquid drum and bass': 'drum-and-bass', 'jungle': 'drum-and-bass',
 
   // Pop
   'pop': 'pop', 'indie pop': 'pop', 'art pop': 'pop', 'synthpop': 'pop',
-  'dance pop': 'dance-pop', 'dance-pop': 'dance-pop',
+  'synth-pop': 'pop', 'electropop': 'pop', 'teen pop': 'pop',
+  'chamber pop': 'pop', 'bedroom pop': 'pop', 'dream pop': 'pop',
+  'baroque pop': 'pop', 'noise pop': 'pop', 'power pop': 'pop',
+  'k-pop': 'pop', 'j-pop': 'pop', 'c-pop': 'pop',
+  'canadian pop': 'pop', 'swedish pop': 'pop', 'uk pop': 'pop', 'australian pop': 'pop',
+  'french pop': 'pop', 'german pop': 'pop', 'italian pop': 'pop', 'spanish pop': 'pop',
+  'dance pop': 'dance-pop', 'dance-pop': 'dance-pop', 'disco': 'dance-pop',
+  'eurodance': 'dance-pop', 'europop': 'dance-pop', 'italo disco': 'dance-pop',
 
   // Rock
   'rock': 'rock', 'classic rock': 'rock', 'hard rock': 'rock',
+  'blues rock': 'rock', 'southern rock': 'rock', 'arena rock': 'rock',
+  'album rock': 'rock', 'heartland rock': 'rock', 'garage rock': 'rock',
+  'psychedelic rock': 'rock', 'stoner rock': 'rock', 'progressive rock': 'rock',
   'alternative rock': 'alternative-rock', 'alternative': 'alternative-rock', 'alt-rock': 'alternative-rock',
-  'indie rock': 'indie-rock', 'indie': 'indie-rock',
-  'punk': 'punk', 'punk rock': 'punk', 'post-punk': 'punk',
-  'metal': 'metal', 'heavy metal': 'metal', 'death metal': 'metal', 'black metal': 'metal', 'thrash metal': 'metal',
+  'grunge': 'alternative-rock', 'shoegaze': 'alternative-rock', 'britpop': 'alternative-rock',
+  'new wave': 'alternative-rock', 'post-rock': 'alternative-rock',
+  'indie rock': 'indie-rock', 'indie': 'indie-rock', 'lo-fi': 'indie-rock',
+  'math rock': 'indie-rock', 'emo': 'indie-rock', 'midwest emo': 'indie-rock',
+  'punk': 'punk', 'punk rock': 'punk', 'post-punk': 'punk', 'pop punk': 'punk',
+  'hardcore punk': 'punk', 'ska punk': 'punk',
+  'metal': 'metal', 'heavy metal': 'metal', 'death metal': 'metal', 'black metal': 'metal',
+  'thrash metal': 'metal', 'nu metal': 'metal', 'metalcore': 'metal',
+  'progressive metal': 'metal', 'doom metal': 'metal', 'power metal': 'metal', 'deathcore': 'metal',
 
   // Soul & Groove
   'r&b': 'rnb', 'rnb': 'rnb', 'rhythm and blues': 'rnb', 'contemporary r&b': 'rnb',
-  'soul': 'soul', 'neo soul': 'soul', 'neo-soul': 'soul',
-  'funk': 'funk', 'g-funk': 'funk',
+  'urban contemporary': 'rnb', 'alternative r&b': 'rnb', 'new jack swing': 'rnb',
+  'soul': 'soul', 'neo soul': 'soul', 'neo-soul': 'soul', 'motown': 'soul',
+  'northern soul': 'soul', 'southern soul': 'soul',
+  'funk': 'funk', 'g-funk': 'funk', 'p-funk': 'funk', 'boogie': 'funk',
 
   // Acoustic
   'folk': 'folk', 'traditional folk': 'folk', 'americana': 'folk',
-  'country': 'country', 'bluegrass': 'country',
+  'singer-songwriter': 'folk', 'acoustic': 'folk', 'indie folk': 'folk',
+  'celtic': 'folk', 'chamber folk': 'folk',
+  'country': 'country', 'bluegrass': 'country', 'alt-country': 'country',
+  'country rock': 'country', 'country pop': 'country', 'outlaw country': 'country',
+  'modern country': 'country', 'nashville sound': 'country',
 
   // Atmospheric
   'ambient': 'ambient', 'dark ambient': 'ambient', 'drone': 'ambient',
+  'chillwave': 'ambient', 'vaporwave': 'ambient', 'new age': 'ambient',
+  'downtempo': 'ambient', 'trip hop': 'ambient', 'chillout': 'ambient',
   'classical': 'classical', 'neoclassical': 'classical', 'modern classical': 'classical', 'orchestral': 'classical',
+  'opera': 'classical', 'baroque': 'classical', 'film score': 'classical', 'soundtrack': 'classical',
   'jazz': 'jazz', 'bebop': 'jazz', 'cool jazz': 'jazz', 'jazz fusion': 'jazz',
+  'smooth jazz': 'jazz', 'acid jazz': 'jazz', 'free jazz': 'jazz', 'swing': 'jazz',
+  'big band': 'jazz', 'bossa nova': 'jazz', 'nu jazz': 'jazz',
 
   // Global
-  'latin': 'latin', 'reggaeton': 'latin', 'bossa nova': 'latin',
+  'latin': 'latin', 'reggaeton': 'latin', 'latin pop': 'latin',
+  'latin hip hop': 'latin', 'latin trap': 'latin', 'salsa': 'latin',
+  'bachata': 'latin', 'cumbia': 'latin', 'merengue': 'latin',
+  'samba': 'latin', 'mpb': 'latin', 'brazilian': 'latin',
   'world music': 'world-music', 'world': 'world-music', 'afrobeat': 'world-music',
+  'afropop': 'world-music', 'afroswing': 'world-music', 'dancehall': 'world-music',
+  'reggae': 'world-music', 'dub': 'world-music', 'ska': 'world-music',
+  'bollywood': 'world-music', 'bhangra': 'world-music', 'filmi': 'world-music',
+  'mandopop': 'world-music', 'cantopop': 'world-music', 'turkish pop': 'world-music',
+  'arabic pop': 'world-music', 'highlife': 'world-music',
 };
 
 // ──────────────────────────────────────────────────
@@ -190,7 +232,10 @@ export const GENRE_LABELS: Record<InternalGenre, string> = {
  * internal genre key. Tries exact match first, then substring match,
  * then falls back to 'pop' (the centre anchor).
  */
-export function normaliseGenre(rawTags: string[]): InternalGenre {
+export function normaliseGenre(rawTags?: string[] | null): InternalGenre {
+  if (!rawTags || !Array.isArray(rawTags)) {
+    return 'pop';
+  }
   // Try each tag in order (assume caller sorted by relevance/count)
   for (const raw of rawTags) {
     const key = raw?.toLowerCase().trim();
@@ -201,10 +246,17 @@ export function normaliseGenre(rawTags: string[]): InternalGenre {
       return GENRE_NORMALISER[key];
     }
 
-    // Partial match: check if any normaliser key is contained in the tag
+    // Partial match: prefer longer (more specific) patterns over short
+    // generic ones like 'pop' or 'rock' to prevent greedy mis-classification
+    let bestMatch: InternalGenre | null = null;
+    let bestLen = 0;
     for (const [pattern, genre] of Object.entries(GENRE_NORMALISER)) {
-      if (key.includes(pattern)) return genre;
+      if (key.includes(pattern) && pattern.length > bestLen) {
+        bestMatch = genre;
+        bestLen = pattern.length;
+      }
     }
+    if (bestMatch) return bestMatch;
   }
 
   // Hard fallback — pop is the centre anchor, safe default
@@ -241,18 +293,25 @@ export function xyzToLatLng(x: number, y: number, z: number): { lat: number; lng
  * Falls back to hash-based color for unknown keys.
  */
 export function getGenreColor(genre: string): string {
-  const internal = GENRE_COLORS[genre as InternalGenre];
+  const key = genre.toLowerCase().trim();
+  const internal = GENRE_COLORS[key as InternalGenre];
   if (internal) return internal;
 
   // Try normalising first
-  const normalised = normaliseGenre([genre]);
-  if (GENRE_COLORS[normalised]) return GENRE_COLORS[normalised];
-
-  // Deterministic hash fallback
-  let hash = 0;
-  for (let i = 0; i < genre.length; i++) {
-    hash = genre.charCodeAt(i) + ((hash << 5) - hash);
+  const normalised = normaliseGenre([key]);
+  
+  // Only map to normalised genre color if it's NOT the hard fallback 'pop'
+  // OR if the original key itself contains the word 'pop'
+  if (GENRE_COLORS[normalised] && (normalised !== 'pop' || key.includes('pop'))) {
+    return GENRE_COLORS[normalised];
   }
+
+  // Deterministic hash fallback for truly unique, niche, or unknown genres
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = key.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // Generate a beautiful, soft cinematic pastel HSL color
   const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 50%, 62%)`;
+  return `hsl(${hue}, 42%, 75%)`;
 }

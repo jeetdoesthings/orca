@@ -29,6 +29,16 @@ interface OrcaStore {
   preloadsLoaded: boolean;
   error: string | null;
 
+  // ── Phase 2 additions ──
+  frontierNodes: OrcaNode[];
+  perimeterData: any[];
+  frontierPanelOpen: boolean;
+  previewingNode: OrcaNode | null;
+  previewProgress: number;
+  adventurousness: any | null;
+  expansionEvent: { nodeId: string; timestamp: number } | null;
+  geographicGaps: any[];
+
   // ── Actions ──
   setGraph: (graph: OrcaGraph) => void;
   updatePositions: (positions: Map<string, [number, number, number]>) => void;
@@ -44,6 +54,17 @@ interface OrcaStore {
   setLoading: (loading: boolean) => void;
   setPreloadsLoaded: (loaded: boolean) => void;
   setError: (error: string | null) => void;
+
+  // ── Phase 2 Actions ──
+  setFrontierNodes: (nodes: OrcaNode[]) => void;
+  setPerimeterData: (data: any[]) => void;
+  setFrontierPanelOpen: (open: boolean) => void;
+  setPreviewingNode: (node: OrcaNode | null) => void;
+  setPreviewProgress: (progress: number) => void;
+  setAdventurousness: (metric: any) => void;
+  setGeographicGaps: (gaps: any[]) => void;
+  transitionNodeToExplored: (artistId: string) => void;
+  revertNodeTransition: (artistId: string) => void;
 }
 
 export const useOrcaStore = create<OrcaStore>((set, get) => ({
@@ -61,6 +82,16 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   isLoading: false,
   preloadsLoaded: false,
   error: null,
+
+  // Phase 2 additions initial state
+  frontierNodes: [],
+  perimeterData: [],
+  frontierPanelOpen: false,
+  previewingNode: null,
+  previewProgress: 0,
+  adventurousness: null,
+  expansionEvent: null,
+  geographicGaps: [],
 
   // Actions
   setGraph: (graph) => set({ graph }),
@@ -96,4 +127,115 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setPreloadsLoaded: (loaded) => set({ preloadsLoaded: loaded }),
   setError: (error) => set({ error }),
+
+  // Phase 2 Actions
+  setFrontierNodes: (nodes) => set({ frontierNodes: nodes }),
+  setPerimeterData: (data) => set({ perimeterData: data }),
+  setFrontierPanelOpen: (open) => set({ frontierPanelOpen: open }),
+  setPreviewingNode: (node) => set({ previewingNode: node }),
+  setPreviewProgress: (progress) => set({ previewProgress: progress }),
+  setAdventurousness: (metric) => set({ adventurousness: metric }),
+  setGeographicGaps: (gaps) => set({ geographicGaps: gaps }),
+
+  transitionNodeToExplored: (artistId) => {
+    set(state => {
+      if (!state.graph) return state;
+
+      const nodeIndex = state.graph.nodes.findIndex(n => n.id === artistId);
+      
+      if (nodeIndex !== -1) {
+        // If node already in graph, transition its state
+        const updatedNodes = [...state.graph.nodes];
+        updatedNodes[nodeIndex] = {
+          ...updatedNodes[nodeIndex],
+          state: 'explored', // or 'newly-explored' for animation
+        };
+        return {
+          graph: {
+            ...state.graph,
+            nodes: updatedNodes,
+          },
+          expansionEvent: { nodeId: artistId, timestamp: Date.now() },
+        };
+      }
+
+      // If it's a frontier node, move it from frontierNodes to graph.nodes
+      const frontierIndex = state.frontierNodes.findIndex(n => n.id === artistId);
+      if (frontierIndex === -1) return state;
+
+      const frontierNode = state.frontierNodes[frontierIndex];
+      const newlyExploredNode: OrcaNode = {
+        ...frontierNode,
+        state: 'explored', // will play newly-explored animation in canvas via class/mesh update
+        weight: 0.5, // default weight for manually explored nodes
+      };
+
+      // Add a primary genre edge to connect it to an existing node of the same genre
+      const updatedEdges = [...state.graph.edges];
+      const matchGenre = newlyExploredNode.genres[0];
+      if (matchGenre) {
+        const sameGenreNode = state.graph.nodes.find(n => n.genres[0] === matchGenre);
+        if (sameGenreNode) {
+          updatedEdges.push({
+            source: newlyExploredNode.id,
+            target: sameGenreNode.id,
+            type: 'genre',
+            weight: 0.6,
+          });
+        }
+      }
+
+      // Stagger new position inside layout Positions map if layout exists
+      const updatedPositions = new Map(state.nodePositions);
+      if (newlyExploredNode.x !== undefined && newlyExploredNode.y !== undefined && newlyExploredNode.z !== undefined) {
+        updatedPositions.set(newlyExploredNode.id, [newlyExploredNode.x, newlyExploredNode.y, newlyExploredNode.z]);
+      }
+
+      return {
+        graph: {
+          ...state.graph,
+          nodes: [...state.graph.nodes, newlyExploredNode],
+          edges: updatedEdges,
+        },
+        nodePositions: updatedPositions,
+        frontierNodes: state.frontierNodes.filter((_, i) => i !== frontierIndex),
+        expansionEvent: { nodeId: artistId, timestamp: Date.now() },
+      };
+    });
+  },
+
+  revertNodeTransition: (artistId) => {
+    set(state => {
+      if (!state.graph) return state;
+
+      const nodeIndex = state.graph.nodes.findIndex(n => n.id === artistId);
+      if (nodeIndex === -1) return state;
+
+      const nodeToRevert = state.graph.nodes[nodeIndex];
+      const revertedNode: OrcaNode = {
+        ...nodeToRevert,
+        state: 'frontier',
+        weight: 0.3,
+      };
+
+      // Remove the mock connection edge if we created one
+      const updatedEdges = state.graph.edges.filter(
+        e => {
+          const src = typeof e.source === 'string' ? e.source : e.source.id;
+          const tgt = typeof e.target === 'string' ? e.target : e.target.id;
+          return !(src === artistId || tgt === artistId);
+        }
+      );
+
+      return {
+        graph: {
+          ...state.graph,
+          nodes: state.graph.nodes.filter(n => n.id !== artistId),
+          edges: updatedEdges,
+        },
+        frontierNodes: [...state.frontierNodes, revertedNode],
+        expansionEvent: null,
+      };
+    });
+  },
 }));

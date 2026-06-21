@@ -337,9 +337,18 @@ function getNodeRadius(weight: number): number {
 
 export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artistName: string, hasImage: boolean) => void }) {
   const graph = useOrcaStore(s => s.graph);
+  const frontierNodes = useOrcaStore(s => s.frontierNodes);
   const preloadsLoaded = useOrcaStore(s => s.preloadsLoaded);
+  const focusedNodeId = useOrcaStore(s => s.focusedNodeId);
+  const pinnedNodeId = useOrcaStore(s => s.pinnedNodeId);
   const { camera, size } = useThree();
   const isMobile = size.width < 640;
+
+  // Combine graph nodes and frontier nodes
+  const allNodes = useMemo(() => {
+    if (!graph) return [];
+    return [...graph.nodes, ...frontierNodes];
+  }, [graph, frontierNodes]);
 
   // Set the global callback
   useEffect(() => {
@@ -386,6 +395,7 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
   const slotAssignments = useRef<(string | null)[]>(new Array(POOL_SIZE).fill(null));
   // Per-slot opacity for smooth transitions
   const slotOpacities = useRef<number[]>(new Array(POOL_SIZE).fill(0));
+  const slotScaleProgress = useRef<number[]>(new Array(POOL_SIZE).fill(1)); // smooth scale progress for focus transitions
 
   const _obj = useMemo(() => new THREE.Object3D(), []);
   const _outward = useMemo(() => new THREE.Vector3(), []);
@@ -399,21 +409,20 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
   // Build a map of artist name (lowercase) → genre color for texture creation
   const genreColorMap = useMemo(() => {
     const map = new Map<string, string>();
-    if (!graph) return map;
-    for (const node of graph.nodes) {
+    for (const node of allNodes) {
       const key = node.name.toLowerCase().trim();
       const color = getGenreColor((node.genres[0] || '').toLowerCase());
       map.set(key, color);
     }
     return map;
-  }, [graph]);
+  }, [allNodes]);
 
   const requestImageLoad = useCallback(
     (artistName: string) => {
       const key = artistName.toLowerCase().trim();
       if (artistImageCache.has(key)) return;
 
-      const node = graph?.nodes.find(n => n.name.toLowerCase().trim() === key);
+      const node = allNodes.find(n => n.name.toLowerCase().trim() === key);
       const preCachedImageUrl = node?.imageUrl || '';
 
       artistImageCache.set(key, {
@@ -424,14 +433,14 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
       loadQueue.push(key);
       processLoadQueue(genreColorMap);
     },
-    [graph, genreColorMap],
+    [allNodes, genreColorMap],
   );
 
   // Preload top 150 most popular artists on startup for instant hover response
   useEffect(() => {
-    if (!graph || !graph.nodes) return;
+    if (allNodes.length === 0) return;
 
-    const popularNodes = [...graph.nodes]
+    const popularNodes = [...allNodes]
       .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
     // Define top 60 as targets to wait for loading screen completion (Section 4.1)
@@ -491,10 +500,36 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
     }
 
     processLoadQueue(genreColorMap);
-  }, [graph, genreColorMap]);
+  }, [allNodes, genreColorMap]);
 
   useFrame(() => {
     if (!graph) return;
+
+    // Collect neighbors if pinned
+    const directNeighbors = new Set<string>();
+    const secondaryNeighbors = new Set<string>();
+
+    if (pinnedNodeId && graph) {
+      for (const edge of graph.edges) {
+        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        if (sourceId === pinnedNodeId) {
+          directNeighbors.add(targetId);
+        } else if (targetId === pinnedNodeId) {
+          directNeighbors.add(sourceId);
+        }
+      }
+      for (const edge of graph.edges) {
+        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        if (sourceId === pinnedNodeId || targetId === pinnedNodeId) continue;
+        if (directNeighbors.has(sourceId) && !directNeighbors.has(targetId)) {
+          secondaryNeighbors.add(targetId);
+        } else if (directNeighbors.has(targetId) && !directNeighbors.has(sourceId)) {
+          secondaryNeighbors.add(sourceId);
+        }
+      }
+    }
 
     const distance = camera.position.length();
     const threshold = isMobile ? ZOOM_THRESHOLD_MOBILE : ZOOM_THRESHOLD_DESKTOP;
@@ -523,7 +558,7 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
 
     // Find the closest front-facing nodes
     _camDir.copy(camera.position).normalize();
-    const nodes = graph.nodes;
+    const nodes = allNodes;
 
     // Only recalculate the expensive sort 4 times a second
     const time = performance.now();
@@ -548,8 +583,16 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
 
       // Sort by facing and weight. As the camera zooms in closer (distance -> 1.76), we reduce the weight bias 
       // so centered tiny/small nodes directly in front of the camera get slots over far-off large nodes.
+      // Additionally, prioritize the pinned node and its direct neighbors at the top to ensure they always get slots.
       const weightBiasFactor = Math.max(0.1, Math.min(3.0, (distance - 1.7) * 1.5));
       scored.sort((a, b) => {
+        if (pinnedNodeId) {
+          const aPriority = a.id === pinnedNodeId || directNeighbors.has(a.id);
+          const bPriority = b.id === pinnedNodeId || directNeighbors.has(b.id);
+          if (aPriority && !bPriority) return -1;
+          if (!aPriority && bPriority) return 1;
+        }
+
         const aScore = a.facing * (1 + nodes[a.idx].weight * weightBiasFactor);
         const bScore = b.facing * (1 + nodes[b.idx].weight * weightBiasFactor);
         return bScore - aScore;
@@ -601,6 +644,9 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
 
       const nodeId = slotAssignments.current[i];
       if (!nodeId) {
+        // Reset scale progress for unused slots
+        slotScaleProgress.current[i] = 1;
+        
         // Fade out unused slot
         slotOpacities.current[i] *= 0.85;
         if (slotOpacities.current[i] < 0.01) {
@@ -626,6 +672,17 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
 
       const pos = sharedDisplacedPositions.get(nodeId);
       if (!pos) {
+        mesh.visible = false;
+        continue;
+      }
+
+      // Smooth focus scale transition (shrinks pooled image to 0 if focused)
+      const isFocused = nodeId === focusedNodeId;
+      const targetScale = isFocused ? 0 : 1;
+      slotScaleProgress.current[i] += (targetScale - slotScaleProgress.current[i]) * 0.15;
+      const currentScale = slotScaleProgress.current[i];
+
+      if (currentScale < 0.01) {
         mesh.visible = false;
         continue;
       }
@@ -658,7 +715,21 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
       _nodeDir.set(pos[0], pos[1], pos[2]).normalize();
       const facing = _nodeDir.dot(_camDir);
       const visibility = Math.max(0, Math.min(1, (facing + 0.05) / 0.3));
-      const targetOpacity = globalAlpha * visibility;
+
+      let isolationFactor = 1.0;
+      let bypassZoom = false;
+      if (pinnedNodeId) {
+        if (nodeId === pinnedNodeId || directNeighbors.has(nodeId)) {
+          isolationFactor = 1.0;
+          bypassZoom = true; // force-show images of direct connections regardless of zoom level
+        } else if (secondaryNeighbors.has(nodeId)) {
+          isolationFactor = 0.5;
+        } else {
+          isolationFactor = 0.15;
+        }
+      }
+
+      const targetOpacity = (bypassZoom ? 1.0 : globalAlpha) * visibility * isolationFactor;
 
       // Smooth opacity transition
       slotOpacities.current[i] += (targetOpacity - slotOpacities.current[i]) * 0.12;
@@ -678,7 +749,7 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
       materials[i].opacity = slotOpacities.current[i];
 
       // Position and orient the mesh — slightly above the circle for layering
-      const nodeRadius = getNodeRadius(node.weight);
+      const nodeRadius = getNodeRadius(node.weight) * currentScale;
       // Image is 85% of the node size (border peeks through)
       const imageScale = nodeRadius * 0.85 * 2;
 

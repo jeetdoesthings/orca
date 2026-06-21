@@ -23,6 +23,8 @@ export interface OrcaNode {
   weight: number;                               // User's listening weight 0-1
   state: 'explored' | 'frontier' | 'dormant';
   audioSignature: AudioSignature;
+  // IDs of explored artists this frontier node is adjacent to (frontier nodes only)
+  adjacentTo?: string[];
   // Layout positions (set by force layout, optional until computed)
   x?: number;
   y?: number;
