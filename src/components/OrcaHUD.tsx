@@ -1253,7 +1253,7 @@ export function OrcaHUD() {
       </div>
 
       {/* Centered Taste Summary Text */}
-      {tasteSummary && (
+      {(tasteSummary || graph) && (
         <div 
           className="taste-summary-text"
           style={{
@@ -1276,7 +1276,13 @@ export function OrcaHUD() {
             fontFamily: "'Inter', system-ui, sans-serif",
           }}
         >
-          {tasteSummary}
+          {graph ? (
+            <>
+              {graph.nodes.length} artists <span style={{ fontWeight: 'bold', margin: '0 4px' }}>•</span> {new Set(graph.nodes.map(n => n.genres[0] || 'pop')).size} genres
+            </>
+          ) : (
+            tasteSummary
+          )}
         </div>
       )}
 
