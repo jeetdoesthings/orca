@@ -25,18 +25,31 @@ export function EdgeField() {
   const positions = useOrcaStore(s => s.nodePositions);
   const hoveredNodeId = useOrcaStore(s => s.hoveredNodeId);
   const pinnedNodeId = useOrcaStore(s => s.pinnedNodeId);
+  const frontierNodes = useOrcaStore(s => s.frontierNodes);
 
   // We track the last version we rendered to avoid rebuilding geometry every frame
   const lastRenderedVersion = useRef(-1);
   const lastActiveNodeId = useRef<string | null>(null);
 
-  // Luminescent Edge Material
-  const lineMaterial = useMemo(() => new THREE.LineBasicMaterial({
-    vertexColors: true,
+  // Luminescent Edge Material (Custom Shader for Per-Vertex Opacity/RGBA)
+  const lineMaterial = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: `
+      attribute vec4 color;
+      varying vec4 vColor;
+      void main() {
+        vColor = color;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec4 vColor;
+      void main() {
+        gl_FragColor = vColor;
+      }
+    `,
     transparent: true,
-    opacity: 0.85, // increased for glow
     depthWrite: false,
-    blending: THREE.AdditiveBlending, // luminescent blend
+    blending: THREE.AdditiveBlending,
   }), []);
 
   // Luminescent Anamorphic Glow Material
@@ -89,13 +102,17 @@ export function EdgeField() {
 
   // Build node lookup by ID
   const nodeMap = useMemo(() => {
-    if (!graph) return new Map();
-    const map = new Map<string, typeof graph.nodes[0]>();
-    for (const node of graph.nodes) {
+    const map = new Map<string, any>();
+    if (graph) {
+      for (const node of graph.nodes) {
+        map.set(node.id, node);
+      }
+    }
+    for (const node of frontierNodes) {
       map.set(node.id, node);
     }
     return map;
-  }, [graph]);
+  }, [graph, frontierNodes]);
 
   // Rebuild geometry when edges, positions, or hover state change
   useFrame(({ camera }) => {
@@ -136,41 +153,103 @@ export function EdgeField() {
 
     const activePositions = sharedDisplacedPositions.size > 0 ? sharedDisplacedPositions : positions;
 
-    // Filter connected edges
-    const edges = graph.edges.filter(edge => {
-      const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
-      const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
-      return sourceId === activeNodeId || targetId === activeNodeId;
-    });
+    // Collect neighbors if pinned
+    const directNeighbors = new Set<string>();
+    const secondaryNeighbors = new Set<string>();
 
-    if (edges.length === 0) {
-      // Even if no edges, the active node itself should glow
-      glowMeshRef.current.count = 1;
-      const pos = activePositions.get(activeNodeId) || positions.get(activeNodeId);
-      if (pos) {
-        _obj.position.set(pos[0], pos[1], pos[2]);
-        _obj.quaternion.copy(camera.quaternion);
-        _obj.updateMatrix();
-        glowMeshRef.current.setMatrixAt(0, _obj.matrix);
-        const node = nodeMap.get(activeNodeId);
-        _color.set(genreToColor(node?.genres[0] || ''));
-        glowMeshRef.current.setColorAt(0, _color);
-        glowMeshRef.current.instanceMatrix.needsUpdate = true;
-        if (glowMeshRef.current.instanceColor) glowMeshRef.current.instanceColor.needsUpdate = true;
+    // Build dynamic frontier edges for the active node
+    const frontierEdges: { source: string; target: string; type: string; weight: number }[] = [];
+    if (activeNodeId) {
+      // Case 1: activeNodeId is an explored artist, we find adjacent unexplored nodes
+      for (const fn of frontierNodes) {
+        if (fn.adjacentTo && fn.adjacentTo.includes(activeNodeId)) {
+          frontierEdges.push({
+            source: activeNodeId,
+            target: fn.id,
+            type: 'related',
+            weight: 0.65,
+          });
+        }
       }
 
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
-      lineRef.current.geometry.dispose();
-      lineRef.current.geometry = geometry;
-      return;
+      // Case 2: activeNodeId is an unexplored artist, we connect it to the explored nodes that introduced it
+      const activeFrontierNode = frontierNodes.find(n => n.id === activeNodeId);
+      if (activeFrontierNode && activeFrontierNode.adjacentTo) {
+        for (const adjId of activeFrontierNode.adjacentTo) {
+          frontierEdges.push({
+            source: activeNodeId,
+            target: adjId,
+            type: 'related',
+            weight: 0.65,
+          });
+        }
+      }
     }
 
+    if (pinnedNodeId && graph) {
+      for (const edge of graph.edges) {
+        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        if (sourceId === pinnedNodeId) {
+          directNeighbors.add(targetId);
+        } else if (targetId === pinnedNodeId) {
+          directNeighbors.add(sourceId);
+        }
+      }
+
+      // Add adjacent unexplored nodes to directNeighbors (when active is explored)
+      for (const fn of frontierNodes) {
+        if (fn.adjacentTo && fn.adjacentTo.includes(pinnedNodeId)) {
+          directNeighbors.add(fn.id);
+        }
+      }
+
+      // Add adjacent explored nodes to directNeighbors (when active is unexplored)
+      const activeFrontierNode = frontierNodes.find(n => n.id === pinnedNodeId);
+      if (activeFrontierNode && activeFrontierNode.adjacentTo) {
+        for (const adjId of activeFrontierNode.adjacentTo) {
+          directNeighbors.add(adjId);
+        }
+      }
+
+      for (const edge of graph.edges) {
+        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        if (sourceId === pinnedNodeId || targetId === pinnedNodeId) continue;
+        if (directNeighbors.has(sourceId) && !directNeighbors.has(targetId)) {
+          secondaryNeighbors.add(targetId);
+        } else if (directNeighbors.has(targetId) && !directNeighbors.has(sourceId)) {
+          secondaryNeighbors.add(sourceId);
+        }
+      }
+    }
+
+    // Determine edges to render:
+    // If pinnedNodeId is set, we render ALL edges in the graph with varying intensities.
+    // Otherwise, we only render edges connected to activeNodeId (which would be hoveredNodeId in this case).
+    const baseEdges = pinnedNodeId
+      ? graph.edges
+      : graph.edges.filter(edge => {
+          const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+          const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+          return sourceId === activeNodeId || targetId === activeNodeId;
+        });
+
+    const edgesToRender = [...baseEdges, ...frontierEdges];
+
     // ── Build Edges ──
-    const totalVerts = edges.length * CONN_SEGMENTS * 2;
+    // Calculate total vertices needed (direct edges are rendered 3x for thickness)
+    let totalSegments = 0;
+    for (const edge of edgesToRender) {
+      const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+      const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+      const isDirect = pinnedNodeId && (sourceId === pinnedNodeId || targetId === pinnedNodeId);
+      totalSegments += isDirect ? (CONN_SEGMENTS * 3) : CONN_SEGMENTS;
+    }
+
+    const totalVerts = totalSegments * 2;
     const posArray = new Float32Array(totalVerts * 3);
-    const colArray = new Float32Array(totalVerts * 3);
+    const colArray = new Float32Array(totalVerts * 4); // 4 components for RGBA!
 
     let idx = 0;
     const _s = new THREE.Vector3();
@@ -180,16 +259,32 @@ export function EdgeField() {
     const _c2 = new THREE.Color();
     const _blend = new THREE.Color();
 
-    // Collect unique node IDs to glow
+    const tangent = new THREE.Vector3();
+    const normal = new THREE.Vector3();
+    const perp = new THREE.Vector3();
+    const cameraDist = camera.position.length();
+    const offsetAmount = Math.max(0.00025, Math.min(0.0016, 0.00045 * (cameraDist - 1.55)));
+
+    // Collect unique node IDs to glow: ONLY activeNodeId and its direct neighbors get glows
     const glowingNodes = new Set<string>();
     glowingNodes.add(activeNodeId);
 
-    for (const edge of edges) {
+    const activeEdgesForGlow = edgesToRender.filter(edge => {
       const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
       const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
-      
+      return sourceId === activeNodeId || targetId === activeNodeId;
+    });
+
+    for (const edge of activeEdgesForGlow) {
+      const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+      const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
       glowingNodes.add(sourceId);
       glowingNodes.add(targetId);
+    }
+
+    for (const edge of edgesToRender) {
+      const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+      const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
 
       const sourcePos = activePositions.get(sourceId) || positions.get(sourceId);
       const targetPos = activePositions.get(targetId) || positions.get(targetId);
@@ -219,29 +314,84 @@ export function EdgeField() {
       // Bump brightness for luminescent lines
       _blend.copy(_c1).lerp(_c2, 0.5).multiplyScalar(isCross ? 0.7 : 1.0);
 
-      for (let seg = 0; seg < CONN_SEGMENTS; seg++) {
-        if (seg + 1 >= pts.length) break;
-        posArray[idx * 3] = pts[seg].x;
-        posArray[idx * 3 + 1] = pts[seg].y;
-        posArray[idx * 3 + 2] = pts[seg].z;
-        colArray[idx * 3] = _blend.r;
-        colArray[idx * 3 + 1] = _blend.g;
-        colArray[idx * 3 + 2] = _blend.b;
-        idx++;
+      // Determine edge category & apply brightness/opacity multipliers
+      let isDirect = false;
+      const finalColor = _blend.clone();
+      let alpha = 0.85;
 
-        posArray[idx * 3] = pts[seg + 1].x;
-        posArray[idx * 3 + 1] = pts[seg + 1].y;
-        posArray[idx * 3 + 2] = pts[seg + 1].z;
-        colArray[idx * 3] = _blend.r;
-        colArray[idx * 3 + 1] = _blend.g;
-        colArray[idx * 3 + 2] = _blend.b;
-        idx++;
+      if (pinnedNodeId) {
+        if (sourceId === pinnedNodeId || targetId === pinnedNodeId) {
+          isDirect = true;
+          finalColor.multiplyScalar(1.5); // Brighter direct neighbor edges
+          alpha = 1.0;
+        } else if (
+          directNeighbors.has(sourceId) || directNeighbors.has(targetId)
+        ) {
+          alpha = 0.25; // Dimmer secondary connections
+        } else {
+          alpha = 0.035; // Faded significantly for unrelated connections (extremely faint!)
+        }
+      } else {
+        alpha = 0.85;
+      }
+
+      const addSegment = (ptsList: THREE.Vector3[]) => {
+        for (let seg = 0; seg < CONN_SEGMENTS; seg++) {
+          if (seg + 1 >= ptsList.length) break;
+          
+          posArray[idx * 3] = ptsList[seg].x;
+          posArray[idx * 3 + 1] = ptsList[seg].y;
+          posArray[idx * 3 + 2] = ptsList[seg].z;
+          colArray[idx * 4] = finalColor.r;
+          colArray[idx * 4 + 1] = finalColor.g;
+          colArray[idx * 4 + 2] = finalColor.b;
+          colArray[idx * 4 + 3] = alpha;
+          idx++;
+
+          posArray[idx * 3] = ptsList[seg + 1].x;
+          posArray[idx * 3 + 1] = ptsList[seg + 1].y;
+          posArray[idx * 3 + 2] = ptsList[seg + 1].z;
+          colArray[idx * 4] = finalColor.r;
+          colArray[idx * 4 + 1] = finalColor.g;
+          colArray[idx * 4 + 2] = finalColor.b;
+          colArray[idx * 4 + 3] = alpha;
+          idx++;
+        }
+      };
+
+      if (isDirect) {
+        // Render center line
+        addSegment(pts);
+
+        // Render left and right offset lines to simulate thickness
+        const ptsLeft: THREE.Vector3[] = [];
+        const ptsRight: THREE.Vector3[] = [];
+
+        for (let seg = 0; seg < pts.length; seg++) {
+          const p = pts[seg];
+          let tVec = tangent;
+          if (seg + 1 < pts.length) {
+            tVec.subVectors(pts[seg + 1], p).normalize();
+          } else {
+            tVec.subVectors(p, pts[seg - 1]).normalize();
+          }
+          normal.copy(p).normalize();
+          perp.crossVectors(tVec, normal).normalize().multiplyScalar(offsetAmount);
+
+          ptsLeft.push(p.clone().add(perp));
+          ptsRight.push(p.clone().sub(perp));
+        }
+
+        addSegment(ptsLeft);
+        addSegment(ptsRight);
+      } else {
+        addSegment(pts);
       }
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(posArray.slice(0, idx * 3), 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colArray.slice(0, idx * 3), 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colArray.slice(0, idx * 4), 4)); // 4 components for RGBA!
 
     lineRef.current.geometry.dispose();
     lineRef.current.geometry = geometry;
@@ -277,7 +427,17 @@ export function EdgeField() {
   return (
     <group>
       <lineSegments ref={lineRef} material={lineMaterial} frustumCulled={false} />
-      <instancedMesh ref={glowMeshRef} args={[glowGeo, glowMaterial, MAX_GLOWS]} frustumCulled={false} />
+      <instancedMesh
+        ref={(el) => {
+          if (el && !el.instanceColor) {
+            const colors = new Float32Array(MAX_GLOWS * 3).fill(1.0);
+            el.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+          }
+          glowMeshRef.current = el;
+        }}
+        args={[glowGeo, glowMaterial, MAX_GLOWS]}
+        frustumCulled={false}
+      />
     </group>
   );
 }

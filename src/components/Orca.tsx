@@ -16,12 +16,20 @@ import { BackgroundField } from './orca/BackgroundField';
 import { NodeLabels } from './orca/NodeLabels';
 import { ArtistImageLayer } from './orca/ArtistImageLayer';
 import { ArtistHoverCard } from './orca/ArtistHoverCard';
+import { FocusedArtistVisual } from './orca/FocusedArtistVisual';
+import { GenrePerimeter } from './orca/GenrePerimeter';
+import { FrontierLabels } from './orca/FrontierLabels';
+import { FrontierParticles } from './orca/FrontierParticles';
+// GeographicGaps removed
 import { OrcaHUD } from './OrcaHUD';
 import { useOrcaStore } from '@/store/orca';
+import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 import { buildGraph } from '@/lib/graph/builder';
 import { getExpansionCandidates } from '@/lib/graph/expander';
 import type { ForceLayout } from '@/lib/graph/types';
 import { persistentImageCache } from '@/lib/imageCache';
+import { latLngToXYZ } from '@/lib/graph/genre-normaliser';
+
 import { LoadingOverlay } from './orca/LoadingOverlay';
 
 const LOADING_MESSAGES = [
@@ -124,100 +132,108 @@ function OrcaScene({
   const { camera, size, gl } = useThree();
   const isMobile = size.width < 640;
 
-  // Responsive start position and zoom bounds — allow zooming extremely close to smaller nodes (surface is at R = 1.65)
-  const minD = isMobile ? 1.95 : 1.85;
-  const maxD = isMobile ? 12.0 : 7.0;
+  // Responsive zoom bounds to prevent infinite zoom or clipping inside the globe (surface is at R = 1.65)
+  const minD = isMobile ? 2.4 : 2.3;
+  const maxD = isMobile ? 10.0 : 9.0;
 
   useEffect(() => {
     if (isMobile) {
-      camera.position.set(0, 0.2, 5.8); // Default starting position zoomed out on mobile
+      camera.position.set(0, 0.2, 8.0); // Default starting position zoomed out on mobile
     } else {
-      camera.position.set(0, 0.2, 3.8); // Desktop default
+      camera.position.set(0, 0.2, 7.2); // Desktop default zoomed out
     }
     camera.lookAt(0, 0, 0);
   }, [isMobile, camera]);
 
-  // ── High-Precision Trackpad/Touchpad Swipe-to-Rotate Interaction ──
-  // Translates two-finger trackpad scrolls (wheel event deltaX/deltaY) into seamless globe rotation.
-  useEffect(() => {
-    const canvas = gl.domElement;
 
-    const onWheel = (e: WheelEvent) => {
-      // If holding ctrlKey, it is a touchpad pinch-to-zoom gesture; let OrbitControls handle it normally
-      if (e.ctrlKey) return;
-
-      const controls = controlsRef.current;
-      if (!controls) return;
-
-      // Intercept and prevent the default browser scroll and OrbitControls dolly-zoom
-      e.preventDefault();
-
-      const dx = e.deltaX;
-      const dy = e.deltaY;
-
-      // Extract current camera spherical coordinates relative to OrbitControls target (0,0,0)
-      const offset = new THREE.Vector3().copy(camera.position).sub(controls.target);
-      let theta = Math.atan2(offset.x, offset.z);
-      let phi = Math.atan2(Math.sqrt(offset.x * offset.x + offset.z * offset.z), offset.y);
-      const radius = offset.length();
-
-      // Horizontal swipe (deltaX) rotates azimuthally (theta)
-      // Vertical swipe (deltaY) rotates polar-wise (phi)
-      const rotationSpeed = 0.0016; 
-      theta += dx * rotationSpeed;
-      phi += dy * rotationSpeed;
-
-      // Restrict polar angle slightly below poles to prevent gimbal lock or camera flipping
-      phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi));
-
-      // Reconstruct Cartesian camera coordinates from new spherical angles
-      camera.position.x = controls.target.x + radius * Math.sin(phi) * Math.sin(theta);
-      camera.position.y = controls.target.y + radius * Math.cos(phi);
-      camera.position.z = controls.target.z + radius * Math.sin(phi) * Math.cos(theta);
-
-      camera.lookAt(controls.target);
-      controls.update();
-    };
-
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      canvas.removeEventListener('wheel', onWheel);
-    };
-  }, [gl, camera]);
 
   const focusStateRef = useRef<{
     nodeId: string | null;
     start: THREE.Vector3;
     end: THREE.Vector3;
     elapsed: number;
+    previousPosition: THREE.Vector3;
+    isFocused: boolean;
   }>({
     nodeId: null,
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
-    elapsed: 0,
+    elapsed: 1, // Start fully elapsed so no initial animation
+    previousPosition: new THREE.Vector3(),
+    isFocused: false,
   });
 
-  useFrame(({ camera }, delta) => {
-    if (!focusedNodeId) return;
+  // ── Fly to Home Region centroid on load ──
+  const [hasFlown, setHasFlown] = useState(false);
+  const homeRegion = useOrcaStore(s => (s as any).homeRegion);
 
-    const nodePosition = positions.get(focusedNodeId);
-    if (!nodePosition) return;
-
-    const focus = focusStateRef.current;
-    if (focus.nodeId !== focusedNodeId) {
-      const direction = new THREE.Vector3(...nodePosition).normalize();
-      const minFocus = isMobile ? 4.6 : 3.2;
-      const maxFocus = isMobile ? 6.6 : 5.2;
-      const distance = Math.max(minFocus, Math.min(maxFocus, camera.position.length()));
+  useEffect(() => {
+    if (homeRegion && !hasFlown && camera) {
+      const { lat, lng, spread } = homeRegion;
+      const baseDistance = isMobile ? 7.8 : 6.8;
+      const [hx, hy, hz] = latLngToXYZ(lat, lng, baseDistance + spread * 1.0);
       
-      focus.nodeId = focusedNodeId;
+      const focus = focusStateRef.current;
+      focus.nodeId = 'home-region';
       focus.start.copy(camera.position);
-      focus.end.copy(direction.multiplyScalar(distance));
+      focus.end.set(hx, hy, hz);
       focus.elapsed = 0;
+      focus.isFocused = true;
+      setHasFlown(true);
+    }
+  }, [homeRegion, hasFlown, camera]);
+
+  useFrame(({ camera }, delta) => {
+    const focus = focusStateRef.current;
+
+    // Detect transitions and target focus node changes
+    if (focus.nodeId !== focusedNodeId) {
+      if (focusedNodeId) {
+        // Entering or switching focus to a specific node
+        let nodePosition = positions.get(focusedNodeId);
+        if (!nodePosition) {
+          const fn = useOrcaStore.getState().frontierNodes.find(n => n.id === focusedNodeId);
+          if (fn && fn.x !== undefined && fn.y !== undefined && fn.z !== undefined) {
+            nodePosition = [fn.x, fn.y, fn.z];
+          }
+        }
+        if (nodePosition) {
+          // Save current position as fallback before starting flight
+          if (!focus.isFocused || focus.nodeId === 'home-region') {
+            focus.previousPosition.copy(camera.position);
+          }
+
+          const direction = new THREE.Vector3(...nodePosition).normalize();
+          const minFocus = isMobile ? 4.6 : 3.2;
+          const maxFocus = isMobile ? 6.6 : 5.2;
+          const distance = Math.max(minFocus, Math.min(maxFocus, camera.position.length()));
+
+          focus.nodeId = focusedNodeId;
+          focus.start.copy(camera.position);
+          focus.end.copy(direction.multiplyScalar(distance));
+          focus.elapsed = 0;
+          focus.isFocused = true;
+        }
+      } else {
+        // Exiting focus completely
+        // Only trigger exit animation if we are actually exiting a focused node,
+        // and NOT the initial home region flight centroid
+        if (focus.isFocused && focus.nodeId !== 'home-region') {
+          focus.nodeId = null;
+          focus.start.copy(camera.position);
+          focus.end.copy(focus.previousPosition);
+          focus.elapsed = 0;
+          focus.isFocused = false;
+        }
+      }
     }
 
+    // Animate camera flight if not completed
     if (focus.elapsed < 1) {
-      focus.elapsed = Math.min(1, focus.elapsed + delta / 0.85);
+      const duration = 0.8; // 800ms duration (within 600-1000ms range)
+      focus.elapsed = Math.min(1, focus.elapsed + delta / duration);
+      
+      // Smooth cubic ease-out
       const eased = 1 - Math.pow(1 - focus.elapsed, 3);
 
       camera.position.lerpVectors(focus.start, focus.end, eased);
@@ -248,8 +264,8 @@ function OrcaScene({
         enableDamping={true}
         minDistance={minD}
         maxDistance={maxD}
-        minPolarAngle={0}
-        maxPolarAngle={Math.PI}
+        minPolarAngle={0.15}
+        maxPolarAngle={Math.PI - 0.15}
       />
 
       {/* Orca layers */}
@@ -258,9 +274,14 @@ function OrcaScene({
         <BackgroundField />
         <EdgeField />
         <NodeField />
+        <GenrePerimeter />
+
         <ArtistImageLayer onImageResolved={onImageResolved} />
+        <FocusedArtistVisual />
         <ArtistHoverCard />
         <NodeLabels />
+        <FrontierParticles />
+        {/* Unexplored text labels removed for a cleaner look with pulsing borders */}
       </group>
     </>
   );
@@ -405,26 +426,55 @@ export function Orca() {
     let cancelled = false;
 
     async function loadOrca() {
-      const startTime = Date.now();
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await fetch('/api/orca');
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || `HTTP ${response.status}`);
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+
+      const poll = async (): Promise<any> => {
+        if (cancelled) return;
+        const res = await fetch(`/api/user/globe-data${search}`);
+        const data = await res.json();
+
+        if (data.status === 'syncing') {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return poll();
         }
 
-        const { nodes, edges } = await response.json();
+        if (data.status === 'no_data') {
+          // First login, trigger user sync
+          await fetch(`/api/user/sync${search}`, { method: 'POST' });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return poll();
+        }
 
+        if (data.status === 'error') {
+          throw new Error('Spotify sync failed. Please try again.');
+        }
+
+        if (data.status === 'ready') {
+          return data;
+        }
+
+        throw new Error('Unknown response state.');
+      };
+
+      try {
+        const responseData = await poll();
         if (cancelled) return;
 
+        const { nodes, edges, homeRegion, tasteSummary } = responseData;
+
         if (!nodes || nodes.length === 0) {
-          setError('No MusicBrainz artist metadata found. Try again in a moment.');
+          setError('No Spotify artist data found. Try connecting a different account.');
           setLoading(false);
           return;
         }
+
+        // Store homeRegion and tasteSummary dynamically in the Zustand store
+        const storeState = useOrcaStore.getState() as any;
+        storeState.homeRegion = homeRegion;
+        storeState.tasteSummary = tasteSummary;
 
         // Build the graph (adds genre + audio-similarity edges)
         const orcaGraph = buildGraph(nodes, edges);
@@ -456,6 +506,27 @@ export function Orca() {
           setLoading(false);
         }
 
+        // Fetch and poll frontier data in parallel (non-blocking progressive loading)
+        const loadFrontier = async () => {
+          if (cancelled) return;
+          try {
+            const res = await fetch(`/api/user/frontier${search}`);
+            const data = await res.json();
+            if (data.status === 'ready' && !cancelled) {
+              const store = useOrcaStore.getState();
+              store.setFrontierNodes(data.frontierNodes || []);
+              store.setPerimeterData(data.perimeterData || []);
+              store.setAdventurousness(data.adventurousness || null);
+              store.setGeographicGaps(data.geographicGaps || []);
+            } else if (data.status === 'computing' && !cancelled) {
+              setTimeout(loadFrontier, 3000); // Poll again in 3 seconds
+            }
+          } catch (err) {
+            console.error('Progressive frontier load failed:', err);
+          }
+        };
+        loadFrontier();
+
         // Start progressive expansion after a short delay
         if (!cancelled) {
           expansionTimerRef.current = setTimeout(() => {
@@ -485,20 +556,23 @@ export function Orca() {
     <div style={{
       width: '100vw',
       height: '100vh',
-      background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
       position: 'relative',
       overflow: 'hidden',
     }}>
+      <BackgroundGradientAnimation interactive={false} />
+
       {graph && (
         <Canvas
-          camera={{ position: [0, 0.2, 3.8], fov: 45, near: 0.1, far: 100 }}
+          camera={{ position: [0, 0.2, 7.2], fov: 45, near: 0.1, far: 100 }}
           gl={{
             antialias: true,
             alpha: true,
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.0,
+            preserveDrawingBuffer: true,
           }}
           style={{ background: 'transparent' }}
+
         >
           <OrcaScene onImageResolved={onImageResolved} />
         </Canvas>
@@ -514,7 +588,9 @@ export function Orca() {
           left: 0,
           width: '100vw',
           height: '100vh',
-          background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
+          background: 'transparent',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -558,7 +634,9 @@ export function Orca() {
           left: 0,
           width: '100vw',
           height: '100vh',
-          background: 'radial-gradient(ellipse at 50% 40%, #ffffff 0%, #F7F7F5 60%, #ECEDE8 100%)',
+          background: 'transparent',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -566,18 +644,27 @@ export function Orca() {
           fontFamily: "'Inter', system-ui, sans-serif",
           gap: '16px',
           zIndex: 10000,
+          boxShadow: 'inset 0 0 100px rgba(0,0,0,0.03)',
         }}>
           <div style={{ fontSize: '13px', color: '#c44' }}>{error}</div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={async () => {
+              try {
+                const search = typeof window !== 'undefined' ? window.location.search : '';
+                await fetch(`/api/user/sync${search}`, { method: 'POST' });
+              } catch (err) {
+                console.error('Failed to trigger retry sync:', err);
+              }
+              window.location.reload();
+            }}
             style={{
-              background: 'rgba(0,0,0,0.06)',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '8px 20px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontFamily: "'Inter', sans-serif",
+               background: 'rgba(0,0,0,0.06)',
+               border: 'none',
+               borderRadius: '8px',
+               padding: '8px 20px',
+               fontSize: '12px',
+               cursor: 'pointer',
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             Retry

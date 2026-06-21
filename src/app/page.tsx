@@ -1,10 +1,13 @@
-'use client';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from './api/auth/[...nextauth]/route';
+import { redirect } from 'next/navigation';
 
-/**
- * Home page — renders the MusicBrainz metadata orca.
- */
-import { Orca } from '@/components/Orca';
+export default async function Home() {
+  const session = await getServerSession(authOptions);
 
-export default function Home() {
-  return <Orca />;
+  if (!session || !session.user) {
+    redirect('/auth/connect');
+  } else {
+    redirect('/globe');
+  }
 }

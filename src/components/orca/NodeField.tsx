@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * NodeField — instanced mesh rendering for all artist nodes on the globe surface.
+ * NodeField — instanced mesh rendering for all artist nodes (explored & frontier) on the globe.
  *
  * Architecture:
  * - Backface hiding: nodes facing away from the camera get scale → 0 (pure rendering, no state)
@@ -14,8 +14,8 @@ import { useRef, useEffect, useMemo, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useOrcaStore } from '@/store/orca';
-import { getGenreColor } from '@/lib/graph/genre-normaliser';
-import { xyzToLatLng, latLngToXYZ } from '@/lib/graph/genre-normaliser';
+import { getGenreColor, xyzToLatLng, latLngToXYZ } from '@/lib/graph/genre-normaliser';
+// Audio preview disabled
 
 // ── Shared displaced positions (read by EdgeField, written by NodeField) ──
 // This avoids pushing to Zustand at 60fps which would trigger re-renders.
@@ -39,7 +39,7 @@ function getNodeRadius(weight: number): number {
   return 0.013;
 }
 
-const MAX_NODES = 2000;
+const MAX_NODES = 2500;
 const R = 1.65;
 
 // Magnetic hover constants
@@ -50,27 +50,75 @@ const SNAP_SPEED = 0.08;
 export function NodeField() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const hitSphereRef = useRef<THREE.Mesh>(null);
+  
   const graph = useOrcaStore(s => s.graph);
+  const frontierNodes = useOrcaStore(s => s.frontierNodes);
+  const expansionEvent = useOrcaStore(s => s.expansionEvent);
+  
   const positions = useOrcaStore(s => s.nodePositions);
   const setHoveredNode = useOrcaStore(s => s.setHoveredNode);
   const setPinnedNode = useOrcaStore(s => s.setPinnedNode);
+  const setFocusedNode = useOrcaStore(s => s.setFocusedNode);
+  const pinnedNodeId = useOrcaStore(s => s.pinnedNodeId);
+  const focusedNodeId = useOrcaStore(s => s.focusedNodeId);
+  
   const { camera, raycaster, pointer, gl } = useThree();
 
-  const geometry = useMemo(() => new THREE.CircleGeometry(1, 24), []);
-  const material = useMemo(() => new THREE.MeshBasicMaterial({
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    transparent: true,
-    opacity: 0.92,
-    vertexColors: false,
-  }), []);
+  const geometry = useMemo(() => {
+    const geo = new THREE.CircleGeometry(1, 24);
+    const dummyColors = new Float32Array(geo.attributes.position.count * 3).fill(1.0);
+    geo.setAttribute('color', new THREE.BufferAttribute(dummyColors, 3));
+    return geo;
+  }, []);
+  const material = useMemo(() => {
+    const mat = new THREE.MeshBasicMaterial({
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.92,
+      vertexColors: true,
+    });
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = `
+        attribute float instanceOpacity;
+        varying float vOpacity;
+      ` + shader.vertexShader;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        `
+        void main() {
+          vOpacity = instanceOpacity;
+        `
+      );
+
+      shader.fragmentShader = `
+        varying float vOpacity;
+      ` + shader.fragmentShader;
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'vec4 diffuseColor = vec4( diffuse, opacity );',
+        'vec4 diffuseColor = vec4( diffuse, opacity * vOpacity );'
+      );
+    };
+    return mat;
+  }, []);
+
+  const opacityAttrRef = useRef<THREE.InstancedBufferAttribute | null>(null);
+
+  useEffect(() => {
+    if (!geometry) return;
+    const opacities = new Float32Array(MAX_NODES).fill(1.0);
+    const attr = new THREE.InstancedBufferAttribute(opacities, 1);
+    geometry.setAttribute('instanceOpacity', attr);
+    opacityAttrRef.current = attr;
+  }, [geometry]);
 
   const _obj = useMemo(() => new THREE.Object3D(), []);
   const _outward = useMemo(() => new THREE.Vector3(), []);
   const _camDir = useMemo(() => new THREE.Vector3(), []);
   const _nodeDir = useMemo(() => new THREE.Vector3(), []);
 
-  const frontierIndices = useRef<number[]>([]);
   const nodeCount = useRef(0);
 
   // Magnetic hover state (all refs — no React state)
@@ -79,10 +127,17 @@ export function NodeField() {
   const mouseGlobeLatLng = useRef<{ lat: number; lng: number } | null>(null);
   const isHovering = useRef(false);
   const closestNodeRef = useRef<string | null>(null);
+  const nodeScales = useRef<Map<string, number>>(new Map()); // Smooth scaling progress for focused node transition
 
   // Click detection state
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const pointerDownTime = useRef(0);
+
+  // Combine graph nodes and frontier nodes
+  const allNodes = useMemo(() => {
+    if (!graph) return [];
+    return [...graph.nodes, ...frontierNodes];
+  }, [graph, frontierNodes]);
 
   // Canvas-level click detection — doesn't interfere with OrbitControls
   useEffect(() => {
@@ -97,17 +152,21 @@ export function NodeField() {
       const dy = e.clientY - pointerDownPos.current.y;
       const moved = Math.sqrt(dx * dx + dy * dy);
       const elapsed = Date.now() - pointerDownTime.current;
+      
       // Tap = short press + minimal movement
       if (moved < 15 && elapsed < 250) {
         if (closestNodeRef.current) {
           const currentPinned = useOrcaStore.getState().pinnedNodeId;
           if (currentPinned === closestNodeRef.current) {
             setPinnedNode(null); // Toggle off if already pinned
+            setFocusedNode(null); // Clear focus too
           } else {
             setPinnedNode(closestNodeRef.current);
+            setFocusedNode(closestNodeRef.current); // Set camera focus
           }
         } else {
           setPinnedNode(null);
+          setFocusedNode(null); // Clear focus on clicking empty space
         }
       }
       pointerDownPos.current = null;
@@ -118,20 +177,25 @@ export function NodeField() {
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointerup', onUp);
     };
-  }, [gl.domElement, setPinnedNode]);
+  }, [gl.domElement, setPinnedNode, setFocusedNode]);
 
   // Snapshot original positions as lat/lng
   useEffect(() => {
     if (!graph || positions.size === 0) return;
     const origMap = new Map<string, { lat: number; lng: number }>();
     const curMap = new Map<string, { lat: number; lng: number }>();
-    for (const node of graph.nodes) {
-      const pos = positions.get(node.id);
+    
+    for (const node of allNodes) {
+      let pos = positions.get(node.id);
+      if (!pos && node.x !== undefined && node.y !== undefined && node.z !== undefined) {
+        pos = [node.x, node.y, node.z];
+      }
       if (!pos) continue;
+
       const ll = xyzToLatLng(pos[0], pos[1], pos[2]);
       origMap.set(node.id, { ...ll });
       
-      // Preserve existing current position so it smoothly glides to new orig
+      // Preserve existing current position so it smoothly glides
       const existingCur = currentLatLngs.current.get(node.id);
       if (existingCur) {
         curMap.set(node.id, { ...existingCur });
@@ -144,52 +208,59 @@ export function NodeField() {
 
     // Initialize shared displaced positions
     sharedDisplacedPositions.clear();
-    for (const [id, pos] of positions) {
-      sharedDisplacedPositions.set(id, [...pos]);
+    for (const node of allNodes) {
+      let pos = positions.get(node.id);
+      if (!pos && node.x !== undefined && node.y !== undefined && node.z !== undefined) {
+        pos = [node.x, node.y, node.z];
+      }
+      if (pos) {
+        sharedDisplacedPositions.set(node.id, [...pos]);
+      }
     }
     displacedPositionsVersion++;
-  }, [graph, positions]);
+
+    // Reset opacities to 1.0 when graph or positions changes
+    const attr = opacityAttrRef.current;
+    if (attr) {
+      attr.array.fill(1.0);
+      attr.needsUpdate = true;
+    }
+  }, [graph, positions, allNodes]);
 
   // Rebuild colors
   const updateColors = useCallback(() => {
     const mesh = meshRef.current;
-    if (!mesh || !graph) return;
-    const nodes = graph.nodes;
-    const count = Math.min(nodes.length, MAX_NODES);
+    if (!mesh || allNodes.length === 0) return;
+
+    const count = Math.min(allNodes.length, MAX_NODES);
     mesh.count = count;
     nodeCount.current = count;
-    const newFrontier: number[] = [];
+
+    if (!mesh.instanceColor || mesh.instanceColor.count < MAX_NODES) {
+      const colors = new Float32Array(MAX_NODES * 3).fill(1.0);
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+    }
+
     for (let i = 0; i < count; i++) {
-      const node = nodes[i];
+      const node = allNodes[i];
       const color = genreToThreeColor(node.genres);
-      if (node.state === 'frontier') {
-        color.lerp(new THREE.Color('#cccccc'), 0.35);
-        newFrontier.push(i);
-      }
       mesh.setColorAt(i, color);
     }
-    frontierIndices.current = newFrontier;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [graph]);
+  }, [allNodes]);
 
-  // Initial setup
+  // Colors setup
   useEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh || !graph || positions.size === 0) return;
-    const count = Math.min(graph.nodes.length, MAX_NODES);
-    mesh.count = count;
-    nodeCount.current = count;
     updateColors();
-  }, [graph, positions, updateColors]);
+  }, [allNodes, updateColors]);
 
   // ── Main frame loop ──
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
     const hitSphere = hitSphereRef.current;
-    if (!mesh || !hitSphere || !graph) return;
+    if (!mesh || !hitSphere || allNodes.length === 0) return;
 
-    const nodes = graph.nodes;
-    const count = Math.min(nodes.length, MAX_NODES);
+    const count = Math.min(allNodes.length, MAX_NODES);
 
     // ── Raycast for hover ──
     raycaster.setFromCamera(pointer, camera);
@@ -207,7 +278,7 @@ export function NodeField() {
     let closestNodeId: string | null = null;
 
     if (mouseGlobeLatLng.current) {
-      for (const node of nodes) {
+      for (const node of allNodes) {
         const orig = originalLatLngs.current.get(node.id);
         if (!orig) continue;
         const dLat = mouseGlobeLatLng.current.lat - orig.lat;
@@ -220,7 +291,7 @@ export function NodeField() {
       }
     }
 
-    for (const node of nodes) {
+    for (const node of allNodes) {
       const orig = originalLatLngs.current.get(node.id);
       const cur = currentLatLngs.current.get(node.id);
       if (!orig || !cur) continue;
@@ -236,11 +307,11 @@ export function NodeField() {
         if (dist < MAGNET_RADIUS && dist > 0.1) {
           const effect = MAGNET_STRENGTH * Math.pow(1 - dist / MAGNET_RADIUS, 2);
           if (node.id === closestNodeId && closestDist < 8) {
-            // Single closest node snaps slightly to cursor
+            // Single closest snaps to cursor
             targetLat = orig.lat + (dLat / dist) * (effect * 0.4);
             targetLng = orig.lng + (dLng / dist) * (effect * 0.4);
           } else {
-            // Other nodes in radius are pushed AWAY to clear space and avoid collisions
+            // Pushed away to clear space
             targetLat = orig.lat - (dLat / dist) * (effect * 0.75);
             targetLng = orig.lng - (dLng / dist) * (effect * 0.75);
           }
@@ -251,38 +322,110 @@ export function NodeField() {
       cur.lng += (targetLng - cur.lng) * SNAP_SPEED;
     }
 
-    // Update hovered node (throttled — only when it changes)
+    // Update hovered node (throttled)
     const newClosest = (isHovering.current && closestNodeId && closestDist < 8) ? closestNodeId : null;
     if (newClosest !== closestNodeRef.current) {
       closestNodeRef.current = newClosest;
       setHoveredNode(newClosest);
     }
 
-    // ── Rebuild instance matrices (backface hiding + displacement) ──
+    // ── Collect neighbors if pinned ──
+    const directNeighbors = new Set<string>();
+    const secondaryNeighbors = new Set<string>();
+
+    if (pinnedNodeId && graph) {
+      for (const edge of graph.edges) {
+        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        if (sourceId === pinnedNodeId) {
+          directNeighbors.add(targetId);
+        } else if (targetId === pinnedNodeId) {
+          directNeighbors.add(sourceId);
+        }
+      }
+      for (const edge of graph.edges) {
+        const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+        if (sourceId === pinnedNodeId || targetId === pinnedNodeId) continue;
+        if (directNeighbors.has(sourceId) && !directNeighbors.has(targetId)) {
+          secondaryNeighbors.add(targetId);
+        } else if (directNeighbors.has(targetId) && !directNeighbors.has(sourceId)) {
+          secondaryNeighbors.add(sourceId);
+        }
+      }
+    }
+
+    // ── Rebuild instance matrices ──
     _camDir.copy(camera.position).normalize();
+    
+    // Smooth out-of-phase staggered pulsing math
     const time = clock.getElapsedTime();
-    const period = Math.PI * 2; // Perfect period loop boundary
-    const t = time % period;
-    const pulse = 0.94 + 0.08 * Math.sin(t);
+
+    const attr = opacityAttrRef.current;
+    let colorNeedsUpdate = false;
 
     for (let i = 0; i < count; i++) {
-      const node = nodes[i];
+      const node = allNodes[i];
       const cur = currentLatLngs.current.get(node.id);
       if (!cur) continue;
 
       const [x, y, z] = latLngToXYZ(cur.lat, cur.lng, R * 1.008);
 
-      // Write to shared map (EdgeField reads this)
+      // Write to shared map for EdgeField lookup
       sharedDisplacedPositions.set(node.id, [x, y, z]);
 
-      // Backface test
+      // Backface visibility calculation
       _nodeDir.set(x, y, z).normalize();
       const facing = _nodeDir.dot(_camDir);
       const visibility = Math.max(0, Math.min(1, (facing + 0.05) / 0.3));
 
-      let radius = getNodeRadius(node.weight) * visibility;
-      // Frontier pulse
-      if (node.state === 'frontier') radius *= pulse;
+      const baseWeight = node.weight;
+      let scaleMultiplier = 1.0;
+      let targetOpacity = 0.92;
+
+      // Frontier node pulse: staggered slow pulse of scale, keeping opacity bright (0.92)
+      if (node.state === 'frontier') {
+        const phase = (time + i * 0.23) % 3.5;
+        // Pulse scaleMultiplier between 0.95 and 1.25
+        scaleMultiplier = 1.10 + 0.15 * Math.sin(phase * Math.PI * 2 / 3.5);
+      }
+
+      // Transition node celebration animations
+      if (expansionEvent && expansionEvent.nodeId === node.id) {
+        const elapsed = Date.now() - expansionEvent.timestamp;
+        if (elapsed < 1200) {
+          colorNeedsUpdate = true;
+          const color = genreToThreeColor(node.genres);
+          
+          if (elapsed < 400) {
+            // Scale up phase: 0-400ms, cubic ease-out
+            const t = elapsed / 400;
+            const ease = 1 - Math.pow(1 - t, 3);
+            scaleMultiplier = 0.65 + (1.4 - 0.65) * ease;
+            targetOpacity = 0.38 + 0.62 * ease;
+            color.lerp(new THREE.Color('#fafafa'), 0.85 * (1 - ease));
+          } else {
+            // Scale down phase: 400-1200ms, quad ease-out
+            const t = (elapsed - 400) / 800;
+            const ease = 1 - Math.pow(1 - t, 2);
+            scaleMultiplier = 1.4 - 0.4 * ease;
+            targetOpacity = 1.0;
+            // Remains at full biome saturation color
+          }
+          mesh.setColorAt(i, color);
+        }
+      }
+
+      let radius = getNodeRadius(baseWeight) * scaleMultiplier * visibility;
+
+      // Pinned Node Camera focus transitions
+      const isFocused = node.id === focusedNodeId;
+      const targetScale = isFocused ? 0 : 1;
+      let currentScale = nodeScales.current.get(node.id) ?? 1;
+      currentScale += (targetScale - currentScale) * 0.15;
+      nodeScales.current.set(node.id, currentScale);
+      
+      radius *= currentScale;
 
       _obj.position.set(x, y, z);
       _obj.scale.setScalar(radius);
@@ -290,16 +433,45 @@ export function NodeField() {
       _obj.lookAt(_outward);
       _obj.updateMatrix();
       mesh.setMatrixAt(i, _obj.matrix);
+
+      // Relationship isolation opacity dampening
+      if (pinnedNodeId) {
+        if (node.id === pinnedNodeId || directNeighbors.has(node.id)) {
+          // Keep base targetOpacity
+        } else if (secondaryNeighbors.has(node.id)) {
+          targetOpacity = Math.min(targetOpacity, 0.5);
+        } else {
+          targetOpacity = Math.min(targetOpacity, 0.15);
+        }
+      }
+
+      if (attr) {
+        const currentOpacity = attr.getX(i);
+        const nextOpacity = currentOpacity + (targetOpacity - currentOpacity) * 0.15;
+        attr.setX(i, nextOpacity);
+      }
     }
 
     mesh.instanceMatrix.needsUpdate = true;
+    if (colorNeedsUpdate && mesh.instanceColor) {
+      mesh.instanceColor.needsUpdate = true;
+    }
+    if (attr) {
+      attr.needsUpdate = true;
+    }
     displacedPositionsVersion++;
   });
 
   return (
     <group>
       <instancedMesh
-        ref={meshRef}
+        ref={(el) => {
+          if (el && !el.instanceColor) {
+            const colors = new Float32Array(MAX_NODES * 3).fill(1.0);
+            el.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+          }
+          meshRef.current = el;
+        }}
         args={[geometry, material, MAX_NODES]}
         frustumCulled={false}
       />
