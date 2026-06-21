@@ -107,7 +107,7 @@ export default function ConnectPage() {
           fontWeight: 400,
           maxWidth: 280,
         }}>
-          visualise your music taste
+          Go beyond your algorithm
         </p>
 
         {/* Connect button */}

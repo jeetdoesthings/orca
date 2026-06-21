@@ -380,26 +380,11 @@ function computeHomeRegion(nodes: OrcaNode[]): { lat: number; lng: number; label
 
 // Generate the beautiful narrative taste summary sentence
 function generateTasteSummary(nodes: OrcaNode[], homeRegion: { label: string; spread: number }): string {
-  const dominantGenreLabel = homeRegion.label;
-  const spread = homeRegion.spread;
   const nodeCount = nodes.length;
-
   const genres = new Set(nodes.map(n => n.genres[0] || 'pop'));
   const uniqueGenresCount = genres.size;
 
-  const topNodes = [...nodes].sort((a, b) => b.weight - a.weight).slice(0, 10);
-  const topMood = getMostCommonMood(topNodes);
-
-  if (spread < 0.25) {
-    return `Deeply rooted in ${dominantGenreLabel} — a focused, specific taste`;
-  }
-  if (spread > 0.70 && uniqueGenresCount >= 6) {
-    return `${nodeCount} artists across ${uniqueGenresCount} genres — a restless, wide-ranging curiosity`;
-  }
-  if (spread > 0.50) {
-    return `A ${dominantGenreLabel}-centred universe with strong connections reaching outward`;
-  }
-  return `${dominantGenreLabel} at the core, defined by ${topMood}`;
+  return `${nodeCount} artists • ${uniqueGenresCount} genres`;
 }
 
 // Build edges between user artists based on genre overlap and audio similarity
