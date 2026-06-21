@@ -199,6 +199,14 @@ export function OrcaHUD() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const [exploreStatus, setExploreStatus] = useState<'idle' | 'adding' | 'done'>('idle');
   const transitionNodeToExplored = useOrcaStore(s => s.transitionNodeToExplored);
@@ -740,7 +748,7 @@ export function OrcaHUD() {
       <div 
         className={`orca-artist-panel ${pinnedNode ? 'active' : ''}`}
         style={{
-          transform: `translate(${panelPos.x}px, ${panelPos.y}px)`,
+          ...(isMobile ? {} : { transform: `translate(${panelPos.x}px, ${panelPos.y}px)` }),
           transition: isDragging ? 'none' : 'opacity 300ms ease, transform 300ms ease',
         }}
         // Block pointer and mouse interactions to prevent unpinning when clicking/scrolling the panel
@@ -767,10 +775,12 @@ export function OrcaHUD() {
               
               {/* Header: Banner with profile image and details (Draggable handle area) */}
               <div 
-                className="orca-artist-header orca-artist-drag-handle"
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
+                className={`orca-artist-header ${isMobile ? '' : 'orca-artist-drag-handle'}`}
+                {...(isMobile ? {} : {
+                  onPointerDown: handlePointerDown,
+                  onPointerMove: handlePointerMove,
+                  onPointerUp: handlePointerUp,
+                })}
               >
                 <div className="orca-artist-banner-wrap">
                   {pinnedImageUrl ? (
@@ -846,14 +856,14 @@ export function OrcaHUD() {
                   background: 'rgba(29, 185, 84, 0.08)',
                   border: '1px solid rgba(29, 185, 84, 0.15)',
                   borderRadius: '12px',
-                  padding: '14px',
-                  marginBottom: '16px',
+                  padding: isMobile ? '10px' : '14px',
+                  marginBottom: isMobile ? '10px' : '16px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '10px'
                 }}>
                   <div style={{
-                    fontSize: '11px',
+                    fontSize: isMobile ? '10px' : '11px',
                     fontWeight: 700,
                     color: '#1db954',
                     letterSpacing: '0.06em',
@@ -875,7 +885,7 @@ export function OrcaHUD() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: '13px', color: 'rgba(0,0,0,0.55)', lineHeight: '1.4', whiteSpace: 'normal' }}>
+                  <div style={{ fontSize: isMobile ? '11px' : '13px', color: 'rgba(0,0,0,0.55)', lineHeight: '1.4', whiteSpace: 'normal' }}>
                     {(() => {
                       const genre = (pinnedNode.genres[0] || '').replace(/-/g, ' ');
                       const nameHash = getHash(pinnedNode.id);
@@ -961,8 +971,8 @@ export function OrcaHUD() {
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: '100px',
-                        padding: '10px 0',
-                        fontSize: '12.5px',
+                        padding: isMobile ? '8px 0' : '10px 0',
+                        fontSize: isMobile ? '11.5px' : '12.5px',
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
@@ -988,8 +998,8 @@ export function OrcaHUD() {
                         color: 'rgba(0,0,0,0.7)',
                         border: 'none',
                         borderRadius: '100px',
-                        padding: '10px 0',
-                        fontSize: '12.5px',
+                        padding: isMobile ? '8px 0' : '10px 0',
+                        fontSize: isMobile ? '11.5px' : '12.5px',
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
@@ -1357,17 +1367,19 @@ export function OrcaHUD() {
             backdropFilter: 'blur(32px) saturate(1.8)',
             WebkitBackdropFilter: 'blur(32px) saturate(1.8)',
             border: '1px solid rgba(0, 0, 0, 0.08)',
-            borderRadius: '20px',
+            borderRadius: isMobile ? '16px' : '20px',
             boxShadow: '0 30px 60px rgba(0, 0, 0, 0.15), 0 4px 15px rgba(0, 0, 0, 0.05)',
-            padding: '32px',
+            padding: isMobile ? '20px' : '32px',
             maxWidth: '460px',
-            width: '90%',
+            width: isMobile ? '92%' : '90%',
+            maxHeight: isMobile ? '80vh' : 'none',
+            overflowY: isMobile ? 'auto' as const : 'visible' as const,
             color: '#111118',
             position: 'relative',
             fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif",
             display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
+            flexDirection: 'column' as const,
+            gap: isMobile ? '14px' : '20px',
           }}
           onClick={e => e.stopPropagation()}
           >
