@@ -348,32 +348,34 @@ canvas:active {
 @media (max-width: 640px) {
   .orca-logo {
     opacity: 0;
+    pointer-events: none;
     transform: translateY(-10px);
   }
 
   .orca-search-container {
-    top: 16px;
-    right: 16px;
-    left: 16px;
+    top: 12px;
+    right: 12px;
+    left: 12px;
     width: auto;
   }
 
   .orca-stats {
-    bottom: 16px;
-    left: 16px;
+    bottom: 56px;
+    left: 12px;
     font-size: 9px;
   }
 
   .orca-expansion-status {
-    bottom: 16px;
-    right: 16px;
+    bottom: 56px;
+    right: 12px;
     font-size: 9px;
   }
 
   .orca-active-artist-card {
     bottom: 64px;
     padding: 8px 14px;
-    width: min(300px, calc(100vw - 32px));
+    width: min(280px, calc(100vw - 24px));
+    border-radius: 12px;
   }
 
   .orca-hover-card {
@@ -396,6 +398,19 @@ canvas:active {
   .orca-hover-card-name {
     font-size: 12px;
     max-width: 160px;
+  }
+
+  .taste-summary-text {
+    font-size: 11px !important;
+    bottom: 12% !important;
+    width: 90% !important;
+  }
+
+  .orca-frontier-toggle-btn {
+    bottom: 14px !important;
+    right: 12px !important;
+    padding: 10px 16px !important;
+    font-size: 11px !important;
   }
 }
 
@@ -758,23 +773,110 @@ canvas:active {
     left: 0;
     right: 0;
     width: 100%;
-    max-height: 52vh;
-    border-radius: 24px 24px 0 0;
+    max-height: 40vh;
+    border-radius: 20px 20px 0 0;
     border: none;
     border-top: 1px solid rgba(0, 0, 0, 0.08);
     transform: translateY(100%);
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.12);
   }
 
   .orca-artist-panel.active {
     transform: translateY(0);
   }
 
+  /* Drag pill indicator at top of mobile sheet */
+  .orca-artist-panel::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.12);
+    margin: 10px auto 0;
+    flex-shrink: 0;
+  }
+
   .orca-artist-panel-close {
-    top: 12px;
+    top: 10px;
     right: 12px;
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .orca-artist-panel-scroll {
+    padding: 12px 16px;
+    padding-top: 6px;
+    gap: 14px;
+  }
+
+  .orca-artist-banner-wrap {
+    height: 100px;
+    border-radius: 10px;
+  }
+
+  .orca-artist-header {
+    gap: 10px;
+  }
+
+  .orca-artist-name-title {
+    font-size: 18px;
+  }
+
+  .orca-artist-genre-badge {
+    font-size: 8px;
+    padding: 2px 6px;
+  }
+
+  .orca-artist-bio {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .orca-panel-section-title {
+    font-size: 9px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+  }
+
+  .orca-album-item {
+    padding: 6px;
+    gap: 10px;
+  }
+
+  .orca-album-art,
+  .orca-album-art-placeholder {
+    width: 36px;
+    height: 36px;
+    border-radius: 5px;
+  }
+
+  .orca-album-name {
+    font-size: 11px;
+  }
+
+  .orca-album-popularity {
+    font-size: 9px;
+  }
+
+  .orca-track-item {
+    padding: 6px 10px;
+  }
+
+  .orca-track-name {
+    font-size: 11px;
+  }
+
+  .orca-track-index {
+    font-size: 9px;
+  }
+
+  .orca-universe-fit {
+    padding: 10px 12px;
+  }
+
+  .orca-universe-fit-text {
+    font-size: 11px;
   }
 
   .orca-frontier-panel {
