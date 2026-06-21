@@ -3,7 +3,12 @@ import { authOptions } from './api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
 
 export default async function Home() {
-  const session = await getServerSession(authOptions);
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+  } catch (error) {
+    console.error('Failed to retrieve server session:', error);
+  }
 
   if (!session || !session.user) {
     redirect('/auth/connect');
