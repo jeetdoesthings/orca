@@ -11,11 +11,12 @@ const SPOTIFY_SCOPES = [
 ].join(' ');
 
 export const authOptions: AuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-pre-alpha-testing-1234567890',
   adapter: PrismaAdapter(prisma),
   providers: [
     SpotifyProvider({
-      clientId: process.env.SPOTIFY_CLIENT_ID!,
-      clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
+      clientId: process.env.SPOTIFY_CLIENT_ID || 'dummy-spotify-client-id',
+      clientSecret: process.env.SPOTIFY_CLIENT_SECRET || 'dummy-spotify-client-secret',
       authorization: {
         params: {
           scope: SPOTIFY_SCOPES,
