@@ -13,7 +13,9 @@ export default function RootLayout({
           name="description"
           content="A living procedural music galaxy generated from canonical music metadata. Explore artist relationships as a spatial orca."
         />
-        <link rel="icon" href="/ORCA_logo.png" type="image/png" />
+        <link rel="icon" href="/ORCA_logo.png?v=3" type="image/png" />
+        <link rel="shortcut icon" href="/ORCA_logo.png?v=3" type="image/png" />
+        <link rel="apple-touch-icon" href="/ORCA_logo.png?v=3" type="image/png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
