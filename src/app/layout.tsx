@@ -1,5 +1,6 @@
 import './globals.css';
 import { SessionProvider } from '@/components/SessionProvider';
+import { Analytics } from '@vercel/analytics/next';
 
 export default function RootLayout({
   children,
@@ -25,6 +26,7 @@ export default function RootLayout({
       </head>
       <body>
         <SessionProvider>{children}</SessionProvider>
+        <Analytics />
       </body>
     </html>
   );
