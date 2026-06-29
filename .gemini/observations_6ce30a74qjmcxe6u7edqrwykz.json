@@ -1,0 +1,71 @@
+[
+  {
+    "id": "obs_journey_milestone_cmqyux38c0003fr06fsf90w6u",
+    "type": "JourneyMilestone",
+    "summary": "Milestone reached in Territory_v2_002 journey",
+    "detail": "You've completed 2 steps on your active path.",
+    "priority": 3,
+    "confidence": 0.9,
+    "timestamp": "2026-06-29T07:07:08.392Z",
+    "relatedEntities": {
+      "journeyId": "cmqyux38c0003fr06fsf90w6u"
+    },
+    "availableActions": [
+      {
+        "name": "CONTINUE_JOURNEY",
+        "label": "Continue",
+        "endpoint": "/api/journeys/cmqyux38c0003fr06fsf90w6u/continue",
+        "method": "POST"
+      }
+    ],
+    "ttl": 3600,
+    "status": "acknowledged"
+  },
+  {
+    "id": "obs_synth_synthpop_1782716828393",
+    "type": "CompositeObservation",
+    "summary": "Found a new bridge artist for synthpop & synthpop is now part of your core identity & synthpop matches your current listening mood & Hidden potential uncovered in synthpop",
+    "detail": "ORCA identified a pathway connection. A journey sequencing is now ready.\nSustained adoption has cemented synthpop as a cornerstone of your tastes.\nIdeal compatibility for comfort and focus session mindset.\nUnexplored high-affinity border artists exist inside this region.",
+    "priority": 5,
+    "confidence": 0.8,
+    "timestamp": "2026-06-29T07:07:08.392Z",
+    "relatedEntities": {
+      "genreId": "synthpop"
+    },
+    "availableActions": [
+      {
+        "name": "START_JOURNEY",
+        "label": "Start Pathway",
+        "endpoint": "/api/journeys",
+        "method": "POST",
+        "payload": {
+          "destinationGenreId": "synthpop"
+        }
+      }
+    ],
+    "ttl": 3600,
+    "status": "acknowledged"
+  },
+  {
+    "id": "obs_journey_milestone_cmqyvlw270007fr06llxqxmyx",
+    "type": "JourneyMilestone",
+    "summary": "Milestone reached in Territory_v2_002 journey",
+    "detail": "You've completed 2 steps on your active path.",
+    "priority": 3,
+    "confidence": 0.9,
+    "timestamp": "2026-06-29T07:08:11.312Z",
+    "relatedEntities": {
+      "journeyId": "cmqyvlw270007fr06llxqxmyx"
+    },
+    "availableActions": [
+      {
+        "name": "CONTINUE_JOURNEY",
+        "label": "Continue",
+        "endpoint": "/api/journeys/cmqyvlw270007fr06llxqxmyx/continue",
+        "method": "POST"
+      }
+    ],
+    "ttl": 3600,
+    "status": "acknowledged"
+  }
+]

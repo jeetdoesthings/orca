@@ -231,6 +231,7 @@ export function getCanonicalArtistName(name: string): string {
  * Discards MusicBrainz ID for ID creation to completely prevent duplicate profiles
  * where one has MBID and another does not.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function getCanonicalArtistId(name: string, _mbid?: string): string {
   const canonical = getCanonicalArtistName(name);
   const stdKey = getStandardisedComparisonKey(canonical);

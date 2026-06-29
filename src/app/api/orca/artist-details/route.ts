@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/route';
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID ?? '';
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? '';
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SEARCH_URL = 'https://api.spotify.com/v1/search';
 
-const LASTFM_API_KEY = process.env.LASTFM_API_KEY || '***REDACTED-LASTFM-KEY***';
+const LASTFM_API_KEY = process.env.LASTFM_API_KEY || (process.env.NODE_ENV === 'production'
+  ? (() => { throw new Error('LASTFM_API_KEY must be set in production!'); })()
+  : '***REDACTED-LASTFM-KEY***');
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 // Server-side Spotify Token Cache
@@ -131,6 +135,14 @@ async function fetchLastFmTopTracks(artistName: string): Promise<any[]> {
 }
 
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const url = new URL(request.url);
+  const isDemo = url.searchParams.get('demo') === 'true';
+
+  if (!isDemo && (!session || !session.user)) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
   const artistName = request.nextUrl.searchParams.get('artist');
   const artistNodeId = request.nextUrl.searchParams.get('id');
 

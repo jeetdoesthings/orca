@@ -6,6 +6,16 @@
  */
 import { create } from 'zustand';
 import type { OrcaNode, OrcaEdge, OrcaGraph } from '@/lib/graph/types';
+import type { UserProfile } from '@/lib/profile/types';
+import { computeAdventurousness } from '@/lib/metrics/adventurousness';
+import type { AdventurousnessMetric } from '@/lib/metrics/adventurousness';
+import type { GeoGap } from '@/lib/metrics/geographicCoverage';
+
+export interface PerimeterData {
+  genre: string;
+  points: Array<{ lat: number; lng: number }>;
+  color: string;
+}
 
 interface OrcaStore {
   // ── Data ──
@@ -24,6 +34,11 @@ interface OrcaStore {
   hoveredNodeId: string | null;
   pinnedNodeId: string | null;
 
+  // ── Globe Filters (Phase 3.5) ──
+  showJourney: boolean;
+  showHistory: boolean;
+  relationshipFilter: 'ALL' | 'MY_TERRITORY' | 'UNEXPLORED';
+
   // ── Loading ──
   isLoading: boolean;
   preloadsLoaded: boolean;
@@ -31,13 +46,16 @@ interface OrcaStore {
 
   // ── Phase 2 additions ──
   frontierNodes: OrcaNode[];
-  perimeterData: any[];
+  perimeterData: PerimeterData[];
   frontierPanelOpen: boolean;
   previewingNode: OrcaNode | null;
   previewProgress: number;
-  adventurousness: any | null;
+  adventurousness: AdventurousnessMetric | null;
   expansionEvent: { nodeId: string; timestamp: number } | null;
-  geographicGaps: any[];
+  geographicGaps: GeoGap[];
+  userProfile: UserProfile | null;
+  homeRegion?: { lat: number; lng: number; label?: string; spread: number } | null;
+  tasteSummary?: string;
 
   // ── Actions ──
   setGraph: (graph: OrcaGraph) => void;
@@ -51,20 +69,25 @@ interface OrcaStore {
   setFocusedNode: (id: string | null) => void;
   setHoveredNode: (id: string | null) => void;
   setPinnedNode: (id: string | null) => void;
+  setShowJourney: (show: boolean) => void;
+  setShowHistory: (show: boolean) => void;
+  setRelationshipFilter: (filter: 'ALL' | 'MY_TERRITORY' | 'UNEXPLORED') => void;
   setLoading: (loading: boolean) => void;
   setPreloadsLoaded: (loaded: boolean) => void;
   setError: (error: string | null) => void;
 
   // ── Phase 2 Actions ──
   setFrontierNodes: (nodes: OrcaNode[]) => void;
-  setPerimeterData: (data: any[]) => void;
+  setPerimeterData: (data: PerimeterData[]) => void;
   setFrontierPanelOpen: (open: boolean) => void;
   setPreviewingNode: (node: OrcaNode | null) => void;
   setPreviewProgress: (progress: number) => void;
-  setAdventurousness: (metric: any) => void;
-  setGeographicGaps: (gaps: any[]) => void;
+  setAdventurousness: (metric: AdventurousnessMetric) => void;
+  setGeographicGaps: (gaps: GeoGap[]) => void;
+  setUserProfile: (profile: UserProfile | null) => void;
   transitionNodeToExplored: (artistId: string) => void;
   revertNodeTransition: (artistId: string) => void;
+  updateNodeImageUrl: (id: string, imageUrl: string) => void;
 }
 
 export const useOrcaStore = create<OrcaStore>((set, get) => ({
@@ -79,6 +102,10 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   focusedNodeId: null,
   hoveredNodeId: null,
   pinnedNodeId: null,
+  showJourney: true,
+  showHistory: false,
+  relationshipFilter: 'ALL',
+
   isLoading: false,
   preloadsLoaded: false,
   error: null,
@@ -92,6 +119,9 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   adventurousness: null,
   expansionEvent: null,
   geographicGaps: [],
+  userProfile: null,
+  homeRegion: null,
+  tasteSummary: '',
 
   // Actions
   setGraph: (graph) => set({ graph }),
@@ -124,6 +154,9 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setFocusedNode: (id) => set({ focusedNodeId: id }),
   setHoveredNode: (id) => set({ hoveredNodeId: id }),
   setPinnedNode: (id) => set({ pinnedNodeId: id }),
+  setShowJourney: (show) => set({ showJourney: show }),
+  setShowHistory: (show) => set({ showHistory: show }),
+  setRelationshipFilter: (filter) => set({ relationshipFilter: filter }),
   setLoading: (loading) => set({ isLoading: loading }),
   setPreloadsLoaded: (loaded) => set({ preloadsLoaded: loaded }),
   setError: (error) => set({ error }),
@@ -136,6 +169,7 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setPreviewProgress: (progress) => set({ previewProgress: progress }),
   setAdventurousness: (metric) => set({ adventurousness: metric }),
   setGeographicGaps: (gaps) => set({ geographicGaps: gaps }),
+  setUserProfile: (profile) => set({ userProfile: profile }),
 
   transitionNodeToExplored: (artistId) => {
     set(state => {
@@ -150,12 +184,22 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
           ...updatedNodes[nodeIndex],
           state: 'explored', // or 'newly-explored' for animation
         };
+
+        // Recalculate adventurousness optimistically
+        const history = state.adventurousness ? [state.adventurousness] : null;
+        const updatedAdventurousness = computeAdventurousness(
+          updatedNodes.filter(n => n.state === 'explored'),
+          state.frontierNodes,
+          history
+        );
+
         return {
           graph: {
             ...state.graph,
             nodes: updatedNodes,
           },
           expansionEvent: { nodeId: artistId, timestamp: Date.now() },
+          adventurousness: updatedAdventurousness,
         };
       }
 
@@ -191,15 +235,27 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
         updatedPositions.set(newlyExploredNode.id, [newlyExploredNode.x, newlyExploredNode.y, newlyExploredNode.z]);
       }
 
+      const updatedNodes = [...state.graph.nodes, newlyExploredNode];
+      const updatedFrontierNodes = state.frontierNodes.filter((_, i) => i !== frontierIndex);
+
+      // Recalculate adventurousness optimistically
+      const history = state.adventurousness ? [state.adventurousness] : null;
+      const updatedAdventurousness = computeAdventurousness(
+        updatedNodes.filter(n => n.state === 'explored'),
+        updatedFrontierNodes,
+        history
+      );
+
       return {
         graph: {
           ...state.graph,
-          nodes: [...state.graph.nodes, newlyExploredNode],
+          nodes: updatedNodes,
           edges: updatedEdges,
         },
         nodePositions: updatedPositions,
-        frontierNodes: state.frontierNodes.filter((_, i) => i !== frontierIndex),
+        frontierNodes: updatedFrontierNodes,
         expansionEvent: { nodeId: artistId, timestamp: Date.now() },
+        adventurousness: updatedAdventurousness,
       };
     });
   },
@@ -227,15 +283,49 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
         }
       );
 
+      const revertedNodes = state.graph.nodes.filter(n => n.id !== artistId);
+      const revertedFrontier = [...state.frontierNodes, revertedNode];
+
+      // Recalculate adventurousness on revert
+      const history = state.adventurousness ? [state.adventurousness] : null;
+      const revertedAdventurousness = computeAdventurousness(
+        revertedNodes.filter(n => n.state === 'explored'),
+        revertedFrontier,
+        history
+      );
+
       return {
         graph: {
           ...state.graph,
-          nodes: state.graph.nodes.filter(n => n.id !== artistId),
+          nodes: revertedNodes,
           edges: updatedEdges,
         },
-        frontierNodes: [...state.frontierNodes, revertedNode],
+        frontierNodes: revertedFrontier,
         expansionEvent: null,
+        adventurousness: revertedAdventurousness,
       };
+    });
+  },
+
+  updateNodeImageUrl: (id: string, imageUrl: string) => {
+    set(state => {
+      if (!state.graph) return {};
+      const inGraph = state.graph.nodes.some(n => n.id === id);
+      if (inGraph) {
+        return {
+          graph: {
+            ...state.graph,
+            nodes: state.graph.nodes.map(n => n.id === id ? { ...n, imageUrl } : n),
+          }
+        };
+      }
+      const inFrontier = state.frontierNodes.some(n => n.id === id);
+      if (inFrontier) {
+        return {
+          frontierNodes: state.frontierNodes.map(n => n.id === id ? { ...n, imageUrl } : n),
+        };
+      }
+      return {};
     });
   },
 }));

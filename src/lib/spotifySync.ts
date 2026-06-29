@@ -2,6 +2,10 @@ import { prisma } from '@/lib/prisma';
 import { normaliseGenre, GENRE_ANCHORS, latLngToXYZ, InternalGenre } from '@/lib/graph/genre-normaliser';
 import type { OrcaNode, OrcaEdge, AudioSignature } from '@/lib/graph/types';
 import { fetchLastFmArtistInfo, ICONIC_SEEDS } from './lastfm';
+import { computeUserProfile } from '@/lib/profile/profile-engine';
+import type { UserProfile } from '@/lib/profile/types';
+import { processArtistLatentRepresentation, seedTraitDefinitions } from '@/lib/latent/latent-space';
+import { computeUserTerritoryMapping } from '@/lib/profile/territory-mapping';
 
 const R = 1.65;
 
@@ -38,15 +42,7 @@ interface SpotifyProfile {
   images: Array<{ url: string }>;
 }
 
-interface SpotifySyncResult {
-  topArtistsShort: SpotifyArtist[];
-  topArtistsMedium: SpotifyArtist[];
-  topArtistsLong: SpotifyArtist[];
-  recentTracks: SpotifyTrack[];
-  savedTracks: SpotifyTrack[];
-  audioFeatures: AudioFeatures[];
-  userProfile: SpotifyProfile;
-}
+
 
 // Seeded PRNG for deterministic coordinate scatter
 function seededRandom(seed: string): () => number {
@@ -87,9 +83,11 @@ export function computeNodeCoords(
 }
 
 // Expose rate-limited fetching from Spotify API
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function spotifyFetch(endpoint: string, token: string): Promise<any> {
   const url = `https://api.spotify.com/v1${endpoint}`;
   
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const makeRequest = async (retries = 2): Promise<any> => {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
@@ -129,7 +127,7 @@ async function fetchTopArtists(token: string, range: string, limit = 50): Promis
 async function fetchRecentlyPlayed(token: string, limit = 50): Promise<SpotifyTrack[]> {
   try {
     const data = await spotifyFetch(`/me/player/recently-played?limit=${limit}`, token);
-    return (data.items || []).map((item: any) => item.track);
+    return (data.items || []).map((item: { track: SpotifyTrack }) => item.track);
   } catch (err) {
     console.error(`[Spotify Sync] Error fetching recently played:`, err);
     return [];
@@ -142,7 +140,7 @@ async function fetchSavedTracks(token: string, limit = 200): Promise<SpotifyTrac
     let nextUrl: string | null = `/me/tracks?limit=50`;
     while (nextUrl && tracks.length < limit) {
       const data = await spotifyFetch(nextUrl, token);
-      const items = (data.items || []).map((item: any) => item.track);
+      const items = (data.items || []).map((item: { track: SpotifyTrack }) => item.track);
       tracks.push(...items);
       nextUrl = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
     }
@@ -170,6 +168,48 @@ async function fetchAudioFeaturesBatch(token: string, trackIds: string[]): Promi
   }
 
   return features;
+}
+
+interface DecomposedWeight {
+  frequencyScore: number;
+  recencyScore: number;
+  persistenceScore: number;
+  weightShort: number;
+  weightMedium: number;
+  weightLong: number;
+}
+
+function decomposeArtistWeight(input: {
+  topRankShort: number | null;
+  topRankMedium: number | null;
+  topRankLong: number | null;
+  recentPlayCount: number;
+  savedTrackCount: number;
+}): DecomposedWeight {
+  const freqPlays = Math.min(1.0, input.recentPlayCount / 10);
+  const freqSaves = Math.min(1.0, input.savedTrackCount / 5);
+  const frequencyScore = Math.max(0.05, 0.5 * freqPlays + 0.5 * freqSaves);
+
+  const shortTermRankVal = input.topRankShort !== null ? (51 - input.topRankShort) / 50 : 0.0;
+  const recentPlaysVal = Math.min(1.0, input.recentPlayCount / 5);
+  const recencyScore = Math.max(0.05, 0.2 + 0.5 * shortTermRankVal + 0.3 * recentPlaysVal);
+
+  const longTermRankVal = input.topRankLong !== null ? (51 - input.topRankLong) / 50 : 0.0;
+  const mediumTermRankVal = input.topRankMedium !== null ? (51 - input.topRankMedium) / 50 : 0.0;
+  const persistenceScore = Math.max(0.05, 0.2 + 0.5 * longTermRankVal + 0.3 * mediumTermRankVal);
+
+  const weightShort = Math.max(0.05, Math.min(1.0, recencyScore * frequencyScore));
+  const weightLong = Math.max(0.05, Math.min(1.0, persistenceScore * frequencyScore));
+  const weightMedium = computeArtistWeight(input);
+
+  return {
+    frequencyScore,
+    recencyScore,
+    persistenceScore,
+    weightShort,
+    weightMedium,
+    weightLong,
+  };
 }
 
 // Compute user's artist listening weight (0.0 - 1.0)
@@ -234,78 +274,7 @@ function computeArtistAudioFeatures(
   return averages;
 }
 
-const MOOD_DEFINITIONS = [
-  {
-    label: 'late-night melancholy',
-    condition: (f: AudioSignature) => f.valence < 0.35 && f.energy < 0.50 && f.acousticness > 0.25,
-  },
-  {
-    label: 'euphoric rush',
-    condition: (f: AudioSignature) => f.valence > 0.70 && f.energy > 0.75,
-  },
-  {
-    label: 'morning clarity',
-    condition: (f: AudioSignature) => f.valence > 0.55 && f.energy > 0.40 && f.energy < 0.75 && f.acousticness > 0.35,
-  },
-  {
-    label: 'restless energy',
-    condition: (f: AudioSignature) => f.energy > 0.75 && f.valence > 0.35 && f.valence < 0.70,
-  },
-  {
-    label: 'tender introspection',
-    condition: (f: AudioSignature) => f.valence > 0.30 && f.valence < 0.65 && f.energy < 0.45 && f.acousticness > 0.45,
-  },
-  {
-    label: 'triumphant arrival',
-    condition: (f: AudioSignature) => f.valence > 0.70 && f.energy > 0.55 && f.energy < 0.80,
-  },
-  {
-    label: 'floating dissociation',
-    condition: (f: AudioSignature) => f.instrumentalness > 0.50 && f.energy < 0.35,
-  },
-  {
-    label: 'defiant noise',
-    condition: (f: AudioSignature) => f.energy > 0.80 && f.valence < 0.45,
-  },
-  {
-    label: 'sun-drenched warmth',
-    condition: (f: AudioSignature) => f.valence > 0.70 && f.acousticness > 0.35 && f.energy < 0.70,
-  },
-  {
-    label: 'underground pulse',
-    condition: (f: AudioSignature) => f.danceability > 0.70 && f.energy > 0.60 && f.valence < 0.60,
-  },
-  {
-    label: 'nostalgic ache',
-    condition: (f: AudioSignature) => f.valence < 0.50 && f.tempo < 95,
-  },
-  {
-    label: 'sacred stillness',
-    condition: (f: AudioSignature) => f.instrumentalness > 0.40 && f.energy < 0.25,
-  },
-];
 
-function getMoodLabel(f: AudioSignature): string {
-  const match = MOOD_DEFINITIONS.find(def => def.condition(f));
-  return match?.label ?? 'varied energy';
-}
-
-function getMostCommonMood(nodes: OrcaNode[]): string {
-  const counts = new Map<string, number>();
-  nodes.forEach(n => {
-    const label = getMoodLabel(n.audioSignature);
-    counts.set(label, (counts.get(label) || 0) + 1);
-  });
-  let maxCount = -1;
-  let bestMood = 'varied energy';
-  counts.forEach((count, mood) => {
-    if (count > maxCount) {
-      maxCount = count;
-      bestMood = mood;
-    }
-  });
-  return bestMood;
-}
 
 // Compute the user's primary taste centroid (HomeRegion)
 function computeHomeRegion(nodes: OrcaNode[]): { lat: number; lng: number; label: string; spread: number } {
@@ -379,7 +348,7 @@ function computeHomeRegion(nodes: OrcaNode[]): { lat: number; lng: number; label
 }
 
 // Generate the beautiful narrative taste summary sentence
-function generateTasteSummary(nodes: OrcaNode[], homeRegion: { label: string; spread: number }): string {
+function generateTasteSummary(nodes: OrcaNode[]): string {
   const nodeCount = nodes.length;
   const genres = new Set(nodes.map(n => n.genres[0] || 'pop'));
   const uniqueGenresCount = genres.size;
@@ -443,18 +412,22 @@ function buildSpotifyEdges(nodes: OrcaNode[]): OrcaEdge[] {
 }
 
 function audioCosineSimilarity(a: AudioSignature, b: AudioSignature): number {
-  const normTempo = (t: number) => Math.max(0, Math.min(1, (t - 40) / 160));
-  const v1 = [a.energy, a.valence, a.danceability, a.acousticness, a.instrumentalness, normTempo(a.tempo)];
-  const v2 = [b.energy, b.valence, b.danceability, b.acousticness, b.instrumentalness, normTempo(b.tempo)];
-
-  let dot = 0, mag1 = 0, mag2 = 0;
-  for (let i = 0; i < v1.length; i++) {
-    dot += v1[i] * v2[i];
-    mag1 += v1[i] * v1[i];
-    mag2 += v2[i] * v2[i];
-  }
-  const denom = Math.sqrt(mag1) * Math.sqrt(mag2);
-  return denom === 0 ? 0 : dot / denom;
+  // Inline scalar dot product — eliminates two 6-element array allocations per call.
+  // At O(N²) call volume (up to 90,000 calls/sync), this removes ~180,000 transient arrays.
+  const nt = (t: number) => Math.max(0, Math.min(1, (t - 40) / 160));
+  const a5 = nt(a.tempo);
+  const b5 = nt(b.tempo);
+  const dot = a.energy * b.energy + a.valence * b.valence + a.danceability * b.danceability
+            + a.acousticness * b.acousticness + a.instrumentalness * b.instrumentalness + a5 * b5;
+  const mag1 = Math.sqrt(
+    a.energy ** 2 + a.valence ** 2 + a.danceability ** 2
+    + a.acousticness ** 2 + a.instrumentalness ** 2 + a5 ** 2
+  );
+  const mag2 = Math.sqrt(
+    b.energy ** 2 + b.valence ** 2 + b.danceability ** 2
+    + b.acousticness ** 2 + b.instrumentalness ** 2 + b5 ** 2
+  );
+  return mag1 === 0 || mag2 === 0 ? 0 : dot / (mag1 * mag2);
 }
 
 // Fallback seed artists if user has < 5 artists
@@ -624,7 +597,7 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
     // If user has zero or extremely few artists, push fallbacks
     if (rawArtists.length < 5) {
       console.warn(`[Spotify Sync] User has fewer than 5 artists. Loading fallback seeds.`);
-      rawArtists = FALLBACK_POPULAR_SEEDS.map((s, idx) => ({
+      rawArtists = FALLBACK_POPULAR_SEEDS.map((s) => ({
         id: s.id,
         name: s.name,
         genres: s.genres,
@@ -661,13 +634,14 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
 
     // Build the processed nodes list
     const nodes: OrcaNode[] = rawArtists.map(artist => {
-      const weight = computeArtistWeight({
+      const decomp = decomposeArtistWeight({
         topRankShort: shortRanks.get(artist.id) ?? null,
         topRankMedium: mediumRanks.get(artist.id) ?? null,
         topRankLong: longRanks.get(artist.id) ?? null,
         recentPlayCount: recentPlayCounts.get(artist.id) ?? 0,
         savedTrackCount: savedTrackCounts.get(artist.id) ?? 0,
       });
+      const weight = decomp.weightMedium;
 
       const normalisedGenre = normaliseGenre(artist.genres);
       
@@ -711,6 +685,12 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
         x,
         y,
         z,
+        weightShort: decomp.weightShort,
+        weightMedium: decomp.weightMedium,
+        weightLong: decomp.weightLong,
+        frequencyScore: decomp.frequencyScore,
+        recencyScore: decomp.recencyScore,
+        persistenceScore: decomp.persistenceScore,
       };
     });
 
@@ -719,7 +699,57 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
 
     // Compute Centroid (HomeRegion) & Summary Narrative
     const homeRegion = computeHomeRegion(nodes);
-    const summary = generateTasteSummary(nodes, homeRegion);
+    const summary = generateTasteSummary(nodes);
+
+    // Fetch previous profile and existing frontier count to maintain trends/readiness context
+    let previousProfile: UserProfile | null = null;
+    let existingFrontierCount = 0;
+    try {
+      const existingUser = await prisma.user.findUnique({
+        where: { spotifyId: userId },
+        select: { profileData: true, frontierData: true },
+      });
+      if (existingUser?.profileData) {
+        previousProfile = JSON.parse(existingUser.profileData);
+      }
+      if (existingUser?.frontierData) {
+        const parsedFrontier = JSON.parse(existingUser.frontierData);
+        existingFrontierCount = Array.isArray(parsedFrontier) ? parsedFrontier.length : 0;
+      }
+    } catch (e) {
+      console.warn('[Spotify Sync] Failed to retrieve previous profile/frontier data:', e);
+    }
+
+    // Compute User Profile (Phase 3)
+    const profile = computeUserProfile(userId, nodes, existingFrontierCount, previousProfile);
+
+    // Process and store canonical artist embeddings in backend database
+    try {
+      console.log(`[Spotify Sync] Generating latent space representations for ${nodes.length} artists...`);
+      await seedTraitDefinitions();
+
+      // Fan out all embedding writes concurrently instead of awaiting each one serially.
+      // Turns 200+ sequential DB round-trips into a single Promise.allSettled batch.
+      await Promise.allSettled(
+        nodes.map(node =>
+          processArtistLatentRepresentation({
+            spotifyId: node.id,
+            name: node.name,
+            genres: node.genres || [],
+            popularity: node.popularity || 50,
+            followers: 0,
+            imageUrl: node.imageUrl || '',
+            audioSignature: node.audioSignature,
+            bio: undefined,
+          }).catch(err => {
+            console.warn(`[Spotify Sync] Failed to generate embedding for artist ${node.name}:`, err);
+          })
+        )
+      );
+      console.log(`[Spotify Sync] Finished embedding generation.`);
+    } catch (err) {
+      console.error('[Spotify Sync] Failed to seed/process latent space embeddings:', err);
+    }
 
     // Store in sqlite database!
     await prisma.user.update({
@@ -733,8 +763,19 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
         displayName: userProfile.display_name,
         avatarUrl: userProfile.images?.[0]?.url ?? '',
         country: userProfile.country,
+        profileData: JSON.stringify(profile),
+        profileVersion: profile.version,
+        profileComputedAt: new Date(),
       },
     });
+
+    try {
+      console.log(`[Spotify Sync] Computing user territory mapping for ${userId}...`);
+      await computeUserTerritoryMapping(userId);
+    } catch (territoryErr) {
+      const err = territoryErr as Error;
+      console.error(`[Spotify Sync] Failed to compute territory mapping:`, err.message);
+    }
 
     console.log(`[Spotify Sync] User sync finished successfully for spotifyId: ${userId}`);
   } catch (err) {

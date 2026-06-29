@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'd3-force-3d' {
   export function forceSimulation(nodes?: any[]): any;
   export function forceManyBody(): any;

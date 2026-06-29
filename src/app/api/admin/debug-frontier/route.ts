@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buildFrontierNodes } from '@/lib/frontier/buildFrontierNodes';
+import { verifyAdminRequest } from '@/lib/auth/admin-auth';
 
 export async function GET(req: Request) {
+  if (!verifyAdminRequest(req)) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get('userId');
 
@@ -38,7 +43,7 @@ export async function GET(req: Request) {
   };
 
   try {
-    const frontier = await buildFrontierNodes(exploredNodes, token);
+    const frontier = await buildFrontierNodes(exploredNodes, token, userId);
     return NextResponse.json({ 
       frontierCount: frontier.length, 
       logs,

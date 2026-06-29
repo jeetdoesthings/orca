@@ -11,12 +11,18 @@ const SPOTIFY_SCOPES = [
 ].join(' ');
 
 export const authOptions: AuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-pre-alpha-testing-1234567890',
+  secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'production'
+    ? (() => { throw new Error('NEXTAUTH_SECRET must be set in production!'); })()
+    : 'fallback-secret-for-pre-alpha-testing-1234567890'),
   adapter: PrismaAdapter(prisma),
   providers: [
     SpotifyProvider({
-      clientId: process.env.SPOTIFY_CLIENT_ID || 'dummy-spotify-client-id',
-      clientSecret: process.env.SPOTIFY_CLIENT_SECRET || 'dummy-spotify-client-secret',
+      clientId: process.env.SPOTIFY_CLIENT_ID || (process.env.NODE_ENV === 'production'
+        ? (() => { throw new Error('SPOTIFY_CLIENT_ID must be set in production!'); })()
+        : 'dummy-spotify-client-id'),
+      clientSecret: process.env.SPOTIFY_CLIENT_SECRET || (process.env.NODE_ENV === 'production'
+        ? (() => { throw new Error('SPOTIFY_CLIENT_SECRET must be set in production!'); })()
+        : 'dummy-spotify-client-secret'),
       authorization: {
         params: {
           scope: SPOTIFY_SCOPES,

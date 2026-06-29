@@ -7,6 +7,8 @@
  * Downscales all images to 150px - 320px for rapid loading and instant GPU uploads.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/route';
 import fs from 'fs';
 import path from 'path';
 
@@ -301,6 +303,14 @@ async function resolveWithCoalescing(
 }
 
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const url = new URL(request.url);
+  const isDemo = url.searchParams.get('demo') === 'true';
+
+  if (!isDemo && (!session || !session.user)) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
   const artist = request.nextUrl.searchParams.get('artist');
   if (!artist) {
     return NextResponse.json({ error: 'Missing ?artist= parameter' }, { status: 400 });

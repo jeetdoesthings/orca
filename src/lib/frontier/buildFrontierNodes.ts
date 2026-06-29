@@ -222,7 +222,7 @@ async function searchSpotifyArtist(
       images: artist.images || [],
     };
 
-    // Save to cache
+    // Update in-memory cache — caller is responsible for flushing to disk once
     memoryCache[normName] = {
       id: resolved.id,
       name: resolved.name,
@@ -230,7 +230,6 @@ async function searchSpotifyArtist(
       popularity: resolved.popularity,
       imageUrl: resolved.images?.[0]?.url || '',
     };
-    saveCache();
 
     return resolved;
   } catch (error) {
@@ -285,13 +284,12 @@ async function fetchRelatedArtists(artistId: string, token: string, retries = 0)
  */
 export async function buildFrontierNodes(
   exploredArtists: OrcaNode[],
-  accessToken: string
+  accessToken: string,
+  userId: string
 ): Promise<OrcaNode[]> {
   if (exploredArtists.length === 0) return [];
 
   // ── Genre-diversified source selection ──
-  // Instead of just top-20 by weight (which are often all one genre),
-  // sample top artists from each genre biome to ensure frontier diversity.
   const genreBuckets = new Map<string, OrcaNode[]>();
   for (const a of exploredArtists) {
     const genre = normaliseGenre(a.genres);
@@ -300,8 +298,6 @@ export async function buildFrontierNodes(
     genreBuckets.set(genre, bucket);
   }
 
-  // Sort each bucket by weight, take top N per genre.
-  // Increase diversity: cap targetExplored at 80 instead of 30, and pull up to 8 per genre.
   const perGenreLimit = Math.max(5, Math.ceil(80 / genreBuckets.size));
   const targetExplored: OrcaNode[] = [];
   for (const [, bucket] of genreBuckets) {
@@ -315,226 +311,287 @@ export async function buildFrontierNodes(
   }
 
   const exploredIds = new Set(exploredArtists.map(a => a.id));
+  const exploredArtistMap = new Map(exploredArtists.map(e => [e.id, e]));
   const candidateMap = new Map<string, { artist: SpotifyArtist; adjacentTo: string[] }>();
 
-  // ── Bypass Spotify related artists API entirely ──
-  // Spotify's /related-artists endpoint is officially deprecated and returns 403 Forbidden.
-  // We bypass it and directly trigger the Last.fm + Spotify Search fallback pipeline.
-  const isForbidden = true;
+  // Last.fm similar artists fetching loop (Stage 1 Candidate Universe Builder)
+  const exploredKeys = new Set(exploredArtists.map(a => getStandardisedComparisonKey(a.name)));
+  const fallbackSourceArtists = targetExplored.slice(0, 60);
+  const fallbackCandidatesMap = new Map<string, { name: string; adjacentTo: Set<string> }>();
+  const LASTFM_CHUNK_SIZE = 10;
 
-  if (isForbidden) {
-    console.log(`[Frontier build] Spotify related-artists deprecated. Using Last.fm + Spotify Search cache pipeline...`);
-    
-    // Get Last.fm similar artists for our top explored nodes across genres
-    // Increase source set from 25 to 60 to expand candidate diversity
-    const exploredKeys = new Set(exploredArtists.map(a => getStandardisedComparisonKey(a.name)));
-    const fallbackSourceArtists = targetExplored.slice(0, 60);
-    const fallbackCandidatesMap = new Map<string, { name: string; adjacentTo: string[] }>();
+  for (let i = 0; i < fallbackSourceArtists.length; i += LASTFM_CHUNK_SIZE) {
+    const chunk = fallbackSourceArtists.slice(i, i + LASTFM_CHUNK_SIZE);
+    const results = await Promise.allSettled(chunk.map(a => fetchLastFmSimilarArtists(a.name, 6).then(similars => ({ a, similars }))));
 
-    for (const a of fallbackSourceArtists) {
-      const similars = await fetchLastFmSimilarArtists(a.name, 6);
-      if (similars) {
-        for (const sim of similars) {
-          const canonId = sim.name.toLowerCase().trim();
-          const stdName = getStandardisedComparisonKey(sim.name);
-          if (exploredIds.has(sim.mbid || '') || exploredKeys.has(stdName)) {
-            continue; // already explored — skip
-          }
-          const existing = fallbackCandidatesMap.get(canonId);
-          if (existing) {
-            if (!existing.adjacentTo.includes(a.id)) {
-              existing.adjacentTo.push(a.id);
-            }
-          } else {
-            fallbackCandidatesMap.set(canonId, {
-              name: sim.name,
-              adjacentTo: [a.id],
-            });
-          }
+    for (const result of results) {
+      if (result.status !== 'fulfilled' || !result.value.similars) continue;
+      const { a, similars } = result.value;
+      for (const sim of similars) {
+        const canonId = sim.name.toLowerCase().trim();
+        const stdName = getStandardisedComparisonKey(sim.name);
+        if (exploredIds.has(sim.mbid || '') || exploredKeys.has(stdName)) continue;
+        const existing = fallbackCandidatesMap.get(canonId);
+        if (existing) {
+          existing.adjacentTo.add(a.id);
+        } else {
+          fallbackCandidatesMap.set(canonId, { name: sim.name, adjacentTo: new Set([a.id]) });
         }
       }
     }
+  }
 
-    // Now resolve candidates on Spotify using search API (checked against our cache first)
-    const rawCandidates = Array.from(fallbackCandidatesMap.values()).slice(0, 120); // up to 120 candidates
-    console.log(`[Frontier build] Found ${rawCandidates.length} unique Last.fm fallback candidates. Resolving on Spotify...`);
+  const rawCandidates = Array.from(fallbackCandidatesMap.entries()).slice(0, 120);
+  const resolvedSpotifyArtists: { artist: SpotifyArtist; adjacentTo: string[] }[] = [];
 
-    const resolvedSpotifyArtists: { artist: SpotifyArtist; adjacentTo: string[] }[] = [];
-    
-    // To prevent hitting Spotify 429s, we limit new uncached Spotify searches in a single run.
-    let newSearchesCount = 0;
-    const MAX_NEW_SEARCHES_PER_RUN = 25;
-    let spotifyRateLimited = false;
+  let newSearchesCount = 0;
+  const MAX_NEW_SEARCHES_PER_RUN = 25;
+  let spotifyRateLimited = false;
 
-    for (const c of rawCandidates) {
-      const normName = c.name.toLowerCase().trim();
-      const isCached = !!memoryCache[normName];
+  for (const [, c] of rawCandidates) {
+    const normName = c.name.toLowerCase().trim();
+    const isCached = !!memoryCache[normName];
+    const adjacentToArr = Array.from(c.adjacentTo);
 
-      let spotifyArtist: SpotifyArtist | null = null;
+    let spotifyArtist: SpotifyArtist | null = null;
 
-      if (isCached) {
-        spotifyArtist = await searchSpotifyArtist(c.name, accessToken);
-      } else if (!spotifyRateLimited && newSearchesCount < MAX_NEW_SEARCHES_PER_RUN) {
-        newSearchesCount++;
-        spotifyArtist = await searchSpotifyArtist(c.name, accessToken);
-        
-        if (!spotifyArtist) {
-          console.warn(`[Frontier build] Spotify search failed or was rate limited for ${c.name}. Bypassing subsequent live searches in this run to avoid hangs.`);
-          spotifyRateLimited = true;
-        }
-
-        // Delay to avoid spamming the Spotify API
-        if (!isCached) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      }
+    if (isCached) {
+      spotifyArtist = await searchSpotifyArtist(c.name, accessToken);
+    } else if (!spotifyRateLimited && newSearchesCount < MAX_NEW_SEARCHES_PER_RUN) {
+      newSearchesCount++;
+      spotifyArtist = await searchSpotifyArtist(c.name, accessToken);
 
       if (!spotifyArtist) {
-        // Fall back to a mock artist profile using Last.fm candidate data!
-        // Matches standard format: lastfm-name
-        const mockId = `lastfm-${getStandardisedComparisonKey(c.name)}`;
-        
-        if (!exploredIds.has(mockId)) {
-          let genres = ['pop'];
-          const firstSourceId = c.adjacentTo[0];
-          if (firstSourceId) {
-            const srcNode = exploredArtists.find(e => e.id === firstSourceId);
-            if (srcNode && srcNode.genres) {
-              genres = srcNode.genres;
-            }
-          }
-          
-          spotifyArtist = {
-            id: mockId,
-            name: c.name,
-            genres: genres,
-            popularity: 45,
-            images: [],
-          };
-        }
+        spotifyRateLimited = true;
       }
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
 
-      if (spotifyArtist && !exploredIds.has(spotifyArtist.id)) {
-        resolvedSpotifyArtists.push({ artist: spotifyArtist, adjacentTo: c.adjacentTo });
+    if (!spotifyArtist) {
+      const mockId = `lastfm-${getStandardisedComparisonKey(c.name)}`;
+      if (!exploredIds.has(mockId)) {
+        let genres = ['pop'];
+        const firstSourceId = adjacentToArr[0];
+        if (firstSourceId) {
+          const srcNode = exploredArtistMap.get(firstSourceId);
+          if (srcNode?.genres) genres = srcNode.genres;
+        }
+        spotifyArtist = { id: mockId, name: c.name, genres, popularity: 45, images: [] };
       }
     }
 
-    console.log(`[Frontier build] Resolved ${resolvedSpotifyArtists.length} candidates (performed ${newSearchesCount} new Spotify API searches).`);
-
-    // Map resolved Spotify artists to candidateMap
-    for (const item of resolvedSpotifyArtists) {
-      const existing = candidateMap.get(item.artist.id);
-      if (existing) {
-        // Merge adjacentTo connections
-        for (const adjId of item.adjacentTo) {
-          if (!existing.adjacentTo.includes(adjId)) {
-            existing.adjacentTo.push(adjId);
-          }
-        }
-      } else {
-        candidateMap.set(item.artist.id, {
-          artist: item.artist,
-          adjacentTo: item.adjacentTo,
-        });
-      }
+    if (spotifyArtist && !exploredIds.has(spotifyArtist.id)) {
+      resolvedSpotifyArtists.push({ artist: spotifyArtist, adjacentTo: adjacentToArr });
     }
   }
 
-  console.log(`[Debug Frontier] Deduped candidates count: ${candidateMap.size}`);
+  saveCache();
 
-  // Convert candidates to fully-fledged OrcaNode elements
-  const candidates: ScoredCandidate[] = Array.from(candidateMap.values()).map(({ artist, adjacentTo }) => {
+  for (const item of resolvedSpotifyArtists) {
+    const existing = candidateMap.get(item.artist.id);
+    if (existing) {
+      for (const adjId of item.adjacentTo) {
+        if (!existing.adjacentTo.includes(adjId)) {
+          existing.adjacentTo.push(adjId);
+        }
+      }
+    } else {
+      candidateMap.set(item.artist.id, {
+        artist: item.artist,
+        adjacentTo: item.adjacentTo,
+      });
+    }
+  }
+
+  // ── Stage 2: ORCA Candidate Selection Engine (OCSE) ──
+  console.log(`[OCSE] Starting evaluation for user ${userId} on ${candidateMap.size} candidates...`);
+
+  let currentUserId = userId;
+  if (!currentUserId || currentUserId === '') {
+    const demoUser = await prisma.user.findFirst({
+      where: { syncStatus: 'COMPLETE' },
+      select: { spotifyId: true }
+    });
+    currentUserId = demoUser?.spotifyId || 'demo';
+  }
+
+  const [
+    relationships,
+    affinities,
+    familiarities,
+    adoptions,
+    memories,
+    activeIntervention,
+    bridges
+  ] = await Promise.all([
+    prisma.userTerritoryRelationship.findMany({ where: { userId: currentUserId } }),
+    prisma.userTerritoryAffinity.findMany({ where: { userId: currentUserId } }),
+    prisma.territoryFamiliarity.findMany({ where: { userId: currentUserId } }),
+    prisma.territoryAdoption.findMany({ where: { userId: currentUserId } }),
+    prisma.userArtistMemory.findMany({ where: { userId: currentUserId } }),
+    prisma.longitudinalIntervention.findFirst({ where: { userId: currentUserId, state: 'ACTIVE' } }),
+    prisma.territoryBridge.findMany({
+      where: { artistId: { in: Array.from(candidateMap.keys()) } }
+    })
+  ]);
+
+  const affinityMap = new Map(affinities.map(a => [a.territoryId, a.compatibilityScore]));
+  const relationshipMap = new Map(relationships.map(r => [r.territoryId, r]));
+  const memoryMap = new Map(memories.map(m => [m.artistId, m.persistence]));
+  const bridgeSet = new Set(bridges.map(b => b.artistId));
+
+  let activeJourneyArtistIds = new Set<string>();
+  if (activeIntervention) {
+    const template = await prisma.globalPathwayTemplate.findFirst({
+      where: { targetTerritory: activeIntervention.targetTerritoryId }
+    });
+    if (template) {
+      try {
+        const ids: string[] = JSON.parse(template.pathwayNodes);
+        ids.forEach(id => activeJourneyArtistIds.add(id));
+      } catch {}
+    }
+  }
+
+  const finalNodes: OrcaNode[] = [];
+
+  for (const [artistId, { artist, adjacentTo }] of candidateMap) {
     const normalisedGenre = normaliseGenre(artist.genres);
-    const weight = 0.3; // Frontier weight per specification
-    // ── Position in own genre biome on the globe ──
-    let [x, y, z] = computeNodeCoords(artist.id, normalisedGenre, weight);
+    const affinityScore = affinityMap.get(normalisedGenre) ?? 0.5;
+    const compatibility = Math.round(affinityScore * 100);
 
-    // Pull closer to adjacent explored nodes
-    const adjacentPositions: [number, number, number][] = [];
-    for (const adjId of adjacentTo) {
-      const expNode = exploredArtists.find(e => e.id === adjId);
-      if (expNode && expNode.x !== undefined && expNode.y !== undefined && expNode.z !== undefined) {
-        adjacentPositions.push([expNode.x, expNode.y, expNode.z]);
-      }
+    const relRow = relationshipMap.get(normalisedGenre);
+    const relState = relRow?.currentState || 'UNEXPLORED';
+    const relConfidence = relRow?.stateConfidence ?? 0.8;
+    
+    let relScore = 15;
+    if (relState === 'UNEXPLORED') relScore = 15;
+    else if (relState === 'CURIOUS') relScore = 35;
+    else if (relState === 'EXPLORING') relScore = 55;
+    else if (relState === 'RESIDENT') relScore = 80;
+    else if (relState === 'STABILIZED') relScore = 95;
+    else if (relState === 'EMERGING') relScore = 70;
+
+    const readiness = 60;
+    const journeyValue = activeJourneyArtistIds.has(artistId) ? 100 : 0;
+    const identityValue = relState === 'STABILIZED' ? 95 : relState === 'RESIDENT' ? 75 : 30;
+
+    const memoryScore = memoryMap.get(artistId) ?? 0.0;
+    const memoryPotential = Math.round(memoryScore * 100);
+    const expansionPotential = 70;
+    const recoveryPotential = (relState === 'DORMANT' || relState === 'RETURNING') ? 90 : 0;
+    const bridgeUtility = bridgeSet.has(artistId) ? 95 : 0;
+    const mindsetMatch = 75;
+
+    const longitudinalConfidence = Math.round(relConfidence * 100);
+    const overallConfidence = Math.round((compatibility + longitudinalConfidence) / 2);
+
+    const intelligence = {
+      compatibility,
+      readiness,
+      relationship: relScore,
+      journeyValue,
+      identityValue,
+      memoryPotential,
+      expansionPotential,
+      recoveryPotential,
+      bridgeUtility,
+      mindsetMatch,
+      longitudinalConfidence,
+      overallConfidence
+    };
+
+    let semanticRole: 'REACHABLE' | 'BRIDGE' | 'JOURNEY_TARGET' | 'RECOVERY' | 'HIDDEN_POTENTIAL' | 'IDENTITY_REINFORCEMENT' | 'DORMANT_MEMORY' | null = null;
+
+    if (journeyValue >= 80) {
+      semanticRole = 'JOURNEY_TARGET';
+    } else if (recoveryPotential >= 80) {
+      semanticRole = 'RECOVERY';
+    } else if (bridgeUtility >= 80) {
+      semanticRole = 'BRIDGE';
+    } else if (memoryPotential >= 70) {
+      semanticRole = 'DORMANT_MEMORY';
+    } else if (identityValue >= 75) {
+      semanticRole = 'IDENTITY_REINFORCEMENT';
+    } else if (expansionPotential >= 60 && compatibility >= 70) {
+      semanticRole = 'HIDDEN_POTENTIAL';
+    } else if (compatibility >= 50) {
+      semanticRole = 'REACHABLE';
     }
 
-    if (adjacentPositions.length > 0) {
-      let avgX = 0, avgY = 0, avgZ = 0;
-      for (const pos of adjacentPositions) {
-        avgX += pos[0];
-        avgY += pos[1];
-        avgZ += pos[2];
-      }
-      avgX /= adjacentPositions.length;
-      avgY /= adjacentPositions.length;
-      avgZ /= adjacentPositions.length;
+    if (semanticRole && overallConfidence >= 45) {
+      const weight = 0.3;
+      let [x, y, z] = computeNodeCoords(artist.id, normalisedGenre, weight);
 
-      // Pull 40% towards the average position of similar explored nodes
-      const pullFactor = 0.4;
-      x = x * (1 - pullFactor) + avgX * pullFactor;
-      y = y * (1 - pullFactor) + avgY * pullFactor;
-      z = z * (1 - pullFactor) + avgZ * pullFactor;
-
-      // Project back onto the sphere of radius R * 1.008
-      const currentRadius = Math.sqrt(x * x + y * y + z * z);
-      const targetRadius = 1.65 * 1.008;
-      if (currentRadius > 0) {
-        x = (x / currentRadius) * targetRadius;
-        y = (y / currentRadius) * targetRadius;
-        z = (z / currentRadius) * targetRadius;
+      const adjacentPositions: [number, number, number][] = [];
+      for (const adjId of adjacentTo) {
+        const expNode = exploredArtistMap.get(adjId);
+        if (expNode && expNode.x !== undefined && expNode.y !== undefined && expNode.z !== undefined) {
+          adjacentPositions.push([expNode.x, expNode.y, expNode.z]);
+        }
       }
+
+      if (adjacentPositions.length > 0) {
+        let avgX = 0, avgY = 0, avgZ = 0;
+        for (const pos of adjacentPositions) {
+          avgX += pos[0];
+          avgY += pos[1];
+          avgZ += pos[2];
+        }
+        avgX /= adjacentPositions.length;
+        avgY /= adjacentPositions.length;
+        avgZ /= adjacentPositions.length;
+
+        const pullFactor = 0.4;
+        x = x * (1 - pullFactor) + avgX * pullFactor;
+        y = y * (1 - pullFactor) + avgY * pullFactor;
+        z = z * (1 - pullFactor) + avgZ * pullFactor;
+
+        const currentRadius = Math.sqrt(x * x + y * y + z * z);
+        const targetRadius = 1.65 * 1.008;
+        if (currentRadius > 0) {
+          x = (x / currentRadius) * targetRadius;
+          y = (y / currentRadius) * targetRadius;
+          z = (z / currentRadius) * targetRadius;
+        }
+      }
+
+      const hash = artist.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const factor = (hash % 100) / 100;
+      const isPop = normalisedGenre.includes('pop') || normalisedGenre.includes('dance');
+      const isRock = normalisedGenre.includes('rock') || normalisedGenre.includes('metal');
+      const isAcoustic = normalisedGenre.includes('folk') || normalisedGenre.includes('classical') || normalisedGenre.includes('jazz');
+
+      const signature: AudioSignature = {
+        energy: Math.max(0.1, Math.min(0.99, 0.45 + factor * 0.3 + (isRock ? 0.25 : 0) - (isAcoustic ? 0.2 : 0))),
+        valence: Math.max(0.1, Math.min(0.99, 0.5 + factor * 0.25 + (isPop ? 0.2 : 0))),
+        danceability: Math.max(0.1, Math.min(0.99, 0.4 + factor * 0.3 + (isPop ? 0.35 : 0))),
+        acousticness: Math.max(0.01, Math.min(0.99, 0.2 + factor * 0.2 + (isAcoustic ? 0.55 : 0) - (isRock ? 0.15 : 0))),
+        instrumentalness: Math.max(0.01, Math.min(0.99, 0.1 + factor * 0.2 + (normalisedGenre.includes('ambient') ? 0.65 : 0))),
+        tempo: Math.round(75 + factor * 80 + (isPop ? 25 : 0)),
+      };
+
+      const imageUrl = artist.images?.[1]?.url ?? artist.images?.[0]?.url ?? '';
+
+      finalNodes.push({
+        id: artist.id,
+        name: artist.name,
+        genres: artist.genres && artist.genres.length > 0 ? artist.genres : [normalisedGenre],
+        popularity: artist.popularity,
+        imageUrl,
+        weight,
+        state: 'frontier',
+        audioSignature: signature,
+        adjacentTo,
+        x,
+        y,
+        z,
+        candidateIntelligence: intelligence,
+        semanticRole
+      });
     }
-
-    // Seed a mock AudioSignature for dynamic cosine queries
-    const hash = artist.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const factor = (hash % 100) / 100;
-    const isPop = normalisedGenre.includes('pop') || normalisedGenre.includes('dance');
-    const isRock = normalisedGenre.includes('rock') || normalisedGenre.includes('metal');
-    const isAcoustic = normalisedGenre.includes('folk') || normalisedGenre.includes('classical') || normalisedGenre.includes('jazz');
-
-    const signature: AudioSignature = {
-      energy: Math.max(0.1, Math.min(0.99, 0.45 + factor * 0.3 + (isRock ? 0.25 : 0) - (isAcoustic ? 0.2 : 0))),
-      valence: Math.max(0.1, Math.min(0.99, 0.5 + factor * 0.25 + (isPop ? 0.2 : 0))),
-      danceability: Math.max(0.1, Math.min(0.99, 0.4 + factor * 0.3 + (isPop ? 0.35 : 0))),
-      acousticness: Math.max(0.01, Math.min(0.99, 0.2 + factor * 0.2 + (isAcoustic ? 0.55 : 0) - (isRock ? 0.15 : 0))),
-      instrumentalness: Math.max(0.01, Math.min(0.99, 0.1 + factor * 0.2 + (normalisedGenre.includes('ambient') ? 0.65 : 0))),
-      tempo: Math.round(75 + factor * 80 + (isPop ? 25 : 0)),
-    };
-
-    const imageUrl = artist.images?.[1]?.url ?? artist.images?.[0]?.url ?? '';
-
-    const node: OrcaNode = {
-      id: artist.id,
-      name: artist.name,
-      genres: artist.genres && artist.genres.length > 0 ? artist.genres : [normalisedGenre],
-      popularity: artist.popularity,
-      imageUrl,
-      weight,
-      state: 'frontier',
-      audioSignature: signature,
-      adjacentTo,
-      x,
-      y,
-      z,
-    };
-
-    const score = computeFrontierScore(node, exploredArtists, adjacentTo);
-
-    return {
-      node,
-      score,
-      adjacentTo,
-    };
-  });
-
-  console.log(`[Debug Frontier] Total candidate nodes generated: ${candidates.length}`);
-  if (candidates.length > 0) {
-    const scores = candidates.map(c => c.score);
-    const avgScore = scores.reduce((s, x) => s + x, 0) / scores.length;
-    console.log(`[Debug Frontier] Score stats: min=${Math.min(...scores).toFixed(2)}, max=${Math.max(...scores).toFixed(2)}, avg=${avgScore.toFixed(2)}`);
-    const passMinScore = candidates.filter(c => c.score >= 10).length;
-    console.log(`[Debug Frontier] Candidates passing minScore (>= 10): ${passMinScore}`);
   }
 
-  return selectFrontierNodes(candidates);
+  console.log(`[OCSE] Selected ${finalNodes.length} nodes from ${candidateMap.size} candidates.`);
+  return finalNodes.slice(0, 150);
 }

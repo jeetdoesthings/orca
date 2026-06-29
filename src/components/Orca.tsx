@@ -23,6 +23,7 @@ import { FrontierParticles } from './orca/FrontierParticles';
 // GeographicGaps removed
 import { OrcaHUD } from './OrcaHUD';
 import { useOrcaStore } from '@/store/orca';
+import { useObservationStore } from '@/store/feedback';
 import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 import { buildGraph } from '@/lib/graph/builder';
 import { getExpansionCandidates } from '@/lib/graph/expander';
@@ -76,10 +77,12 @@ const LOADING_MESSAGES = [
 ];
 
 function RotatingLoadingMessage() {
-  const [msgIndex, setMsgIndex] = useState(() => Math.floor(Math.random() * LOADING_MESSAGES.length));
+  const [msgIndex, setMsgIndex] = useState(0);
   const [fade, setFade] = useState('in'); // 'in' | 'out'
 
   useEffect(() => {
+    setMsgIndex(Math.floor(Math.random() * LOADING_MESSAGES.length));
+
     const interval = setInterval(() => {
       // Start fade out
       setFade('out');
@@ -424,6 +427,38 @@ export function Orca() {
   // ── Load initial orca data ──
   useEffect(() => {
     let cancelled = false;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    function mergeGiaSnapshot(dest: any, src: any): boolean {
+      if (!dest || !src) return false;
+      let changed = false;
+      const keys = [
+        'relationship', 'identity', 'journey', 'growth', 'currentSession',
+        'discovery', 'opportunities', 'history', 'confidence', 'availableActions'
+      ];
+      for (const key of keys) {
+        if (src[key]) {
+          if (!dest[key]) {
+            dest[key] = {};
+            changed = true;
+          }
+          for (const k of Object.keys(src[key])) {
+            if (Array.isArray(src[key][k])) {
+              const destArr = dest[key][k] || [];
+              const srcArr = src[key][k];
+              if (JSON.stringify(destArr) !== JSON.stringify(srcArr)) {
+                dest[key][k] = [...srcArr];
+                changed = true;
+              }
+            } else if (dest[key][k] !== src[key][k]) {
+              dest[key][k] = src[key][k];
+              changed = true;
+            }
+          }
+        }
+      }
+      return changed;
+    }
 
     async function loadOrca() {
       setLoading(true);
@@ -433,7 +468,7 @@ export function Orca() {
 
       const poll = async (): Promise<any> => {
         if (cancelled) return;
-        const res = await fetch(`/api/user/globe-data${search}`);
+        const res = await fetch(`/api/globe${search}`);
         const data = await res.json();
 
         if (data.status === 'syncing') {
@@ -461,11 +496,11 @@ export function Orca() {
 
       try {
         const responseData = await poll();
-        if (cancelled) return;
+        if (cancelled || !responseData) return;
 
         const { nodes, edges, homeRegion, tasteSummary } = responseData;
 
-        if (!nodes || nodes.length === 0) {
+        if (!nodes || nodes.length === 0 || !edges) {
           setError('No Spotify artist data found. Try connecting a different account.');
           setLoading(false);
           return;
@@ -491,6 +526,7 @@ export function Orca() {
         // Set graph and positions in store
         setGraph(orcaGraph);
         updatePositions(layout.getPositions());
+        useObservationStore.getState().fetchObservations(search);
 
         // Assess cache warmth BEFORE starting the queue gates (Section 8)
         const warmth = await assessCacheWarmth(orcaGraph.nodes);
@@ -533,6 +569,115 @@ export function Orca() {
             startExpansion();
           }, 3000);
         }
+
+        // Background polling for Dynamic Backend Synchronization
+        if (layoutRef.current) {
+          pollInterval = setInterval(async () => {
+            if (cancelled) return;
+            try {
+              const res = await fetch(`/api/globe${search}`);
+              if (!res.ok) return;
+              const data = await res.json();
+              if (data.status === 'ready') {
+                const currentStore = useOrcaStore.getState();
+                const currentGraph = currentStore.graph;
+                if (!currentGraph) return;
+
+                const newNodes = data.nodes || [];
+                const newEdges = data.edges || [];
+                const newGenres = data.genres || [];
+
+                let graphChanged = false;
+                let layoutChanged = false;
+                const nodesToAdd: any[] = [];
+                const edgesToAdd: any[] = [];
+
+                // 1. Diff and update existing nodes, detect new nodes
+                newNodes.forEach((newNode: any) => {
+                  const existingNode = currentGraph.nodes.find(n => n.id === newNode.id);
+                  if (existingNode) {
+                    let nodeChanged = false;
+                    const scalarKeys = [
+                      'relationshipState', 'memoryStrength', 'isInActiveJourney', 'journeyRole',
+                      'weight', 'bridgeArtist', 'gatewayArtist', 'destinationArtist', 'alreadyIntegrated',
+                      'activeJourneyStep', 'recommendedNext', 'discoveredRecently', 'memoryContribution'
+                    ];
+                    const eNodeAny = existingNode as any;
+                    const nNodeAny = newNode as any;
+                    for (const k of scalarKeys) {
+                      if (eNodeAny[k] !== nNodeAny[k]) {
+                        eNodeAny[k] = nNodeAny[k];
+                        nodeChanged = true;
+                      }
+                    }
+                    if (newNode.availableActions) {
+                      if (!existingNode.availableActions) {
+                        existingNode.availableActions = { ...newNode.availableActions };
+                        nodeChanged = true;
+                      } else {
+                        const actionsKeys = ['canExplore', 'canSave', 'canListen'] as const;
+                        for (const k of actionsKeys) {
+                          if (existingNode.availableActions[k] !== newNode.availableActions[k]) {
+                            existingNode.availableActions[k] = newNode.availableActions[k];
+                            nodeChanged = true;
+                          }
+                        }
+                      }
+                    }
+                    if (nodeChanged) graphChanged = true;
+                  } else {
+                    // New Node introduced (e.g. unknown genre/artist)
+                    nodesToAdd.push(newNode);
+                    graphChanged = true;
+                    layoutChanged = true;
+                  }
+                });
+
+                // 2. Detect new edges
+                newEdges.forEach((newEdge: any) => {
+                  const srcId = typeof newEdge.source === 'string' ? newEdge.source : newEdge.source.id;
+                  const tgtId = typeof newEdge.target === 'string' ? newEdge.target : newEdge.target.id;
+                  const edgeExists = currentGraph.edges.some(e => {
+                    const s = typeof e.source === 'string' ? e.source : e.source.id;
+                    const t = typeof e.target === 'string' ? e.target : e.target.id;
+                    return (s === srcId && t === tgtId) || (s === tgtId && t === srcId);
+                  });
+                  if (!edgeExists) {
+                    edgesToAdd.push(newEdge);
+                    graphChanged = true;
+                  }
+                });
+
+                // 3. Apply updates to layout if new nodes/edges added
+                if (layoutChanged && layoutRef.current && nodesToAdd.length > 0) {
+                  layoutRef.current.addNodes(nodesToAdd, edgesToAdd);
+                  // Warm up layout slightly for new nodes
+                  for (let i = 0; i < 60; i++) {
+                    layoutRef.current.tick();
+                  }
+                  currentStore.updatePositions(layoutRef.current.getPositions());
+                }
+
+                // 4. Merge genre states (GIA reference stable merge)
+                currentGraph.genres.forEach(region => {
+                  const backendGenre = newGenres.find((g: any) => g.name.toLowerCase() === region.name.toLowerCase());
+                  if (backendGenre) {
+                    const changed = mergeGiaSnapshot(region, backendGenre);
+                    if (changed) graphChanged = true;
+                  }
+                });
+
+                // 5. Trigger react updates
+                if (graphChanged) {
+                  currentStore.setGraph({ ...currentGraph });
+                }
+                useObservationStore.getState().fetchObservations(search);
+              }
+            } catch (err) {
+              console.error('Background synchronization failed:', err);
+            }
+          }, 8000);
+        }
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to load orca:', err);
@@ -547,6 +692,7 @@ export function Orca() {
     return () => {
       cancelled = true;
       if (expansionTimerRef.current) clearTimeout(expansionTimerRef.current);
+      if (pollInterval) clearInterval(pollInterval);
       layoutRef.current?.stop();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

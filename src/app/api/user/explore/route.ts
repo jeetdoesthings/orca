@@ -27,32 +27,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing artistId' }, { status: 400 });
     }
 
-    // 1. Record exploration in ExploredArtist database table
-    await prisma.exploredArtist.upsert({
-      where: {
-        userId_artistId: { userId, artistId },
-      },
-      update: {
-        lastExploredAt: new Date(),
-        source: action,
-      },
-      create: {
-        userId,
-        artistId,
-        source: action,
-        exploredAt: new Date(),
-        lastExploredAt: new Date(),
-      },
-    });
-
-    // 2. Fetch User to load globeData and frontierData
-    const user = await prisma.user.findUnique({
-      where: { spotifyId: userId },
-      select: {
-        globeData: true,
-        frontierData: true,
-      },
-    });
+    // 1. Record exploration in ExploredArtist database table & load globe/frontier data concurrently
+    const [_, user] = await Promise.all([
+      prisma.exploredArtist.upsert({
+        where: {
+          userId_artistId: { userId, artistId },
+        },
+        update: {
+          lastExploredAt: new Date(),
+          source: action,
+        },
+        create: {
+          userId,
+          artistId,
+          source: action,
+          exploredAt: new Date(),
+          lastExploredAt: new Date(),
+        },
+      }),
+      prisma.user.findUnique({
+        where: { spotifyId: userId },
+        select: {
+          globeData: true,
+          frontierData: true,
+          frontierComputedAt: true,
+        },
+      })
+    ]);
 
     if (!user) {
       return NextResponse.json({ error: 'User data not found' }, { status: 404 });
@@ -122,10 +123,38 @@ export async function POST(request: Request) {
       },
     });
 
-    // 4. Trigger asynchronous background frontier recalculation
-    computeAndStoreFrontier(userId, updatedNodes, accessToken).catch(err => {
-      console.error('[API explore] Background frontier recompute error:', err);
-    });
+    // 4. Trigger asynchronous background frontier recalculation with throttling
+    let shouldRecompute = false;
+    if (!user.frontierComputedAt) {
+      shouldRecompute = true;
+    } else {
+      const timeSinceLastCompute = Date.now() - new Date(user.frontierComputedAt).getTime();
+      const tenMinutes = 10 * 60 * 1000;
+      if (timeSinceLastCompute > tenMinutes) {
+        shouldRecompute = true;
+      } else {
+        // Count how many artists have been explored since the last computation
+        const newExploredCount = await prisma.exploredArtist.count({
+          where: {
+            userId,
+            exploredAt: {
+              gt: user.frontierComputedAt,
+            },
+          },
+        });
+        if (newExploredCount >= 3) {
+          shouldRecompute = true;
+        }
+      }
+    }
+
+    if (shouldRecompute) {
+      computeAndStoreFrontier(userId, updatedNodes, accessToken).catch(err => {
+        console.error('[API explore] Background frontier recompute error:', err);
+      });
+    } else {
+      console.log(`[API explore] Throttling frontier recompute for user ${userId}. Last compute was ${user.frontierComputedAt ? (Date.now() - new Date(user.frontierComputedAt).getTime()) / 1000 : 'never'}s ago.`);
+    }
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {

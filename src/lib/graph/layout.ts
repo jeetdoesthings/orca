@@ -4,11 +4,11 @@
  * to the globe surface at radius R.
  */
 import type { OrcaNode, OrcaEdge, OrcaGraph, ForceLayout } from './types';
-import { GENRE_ANCHORS, latLngToXYZ, normaliseGenre } from './genre-normaliser';
+import { GENRE_ANCHORS, latLngToXYZ } from './genre-normaliser';
 import type { InternalGenre } from './genre-normaliser';
 
 // d3-force-3d is a CommonJS module, import accordingly
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let d3Force: any = null;
 
 async function getD3Force() {
@@ -133,8 +133,8 @@ export async function createLayout(
     .nodes(graph.nodes)
     .force('charge', forceManyBody().strength(-0.035).distanceMax(1.5))
     .force('link', forceLink(links)
-      .id((d: any) => d.id)
-      .strength((d: any) => (d.weight || 0.3) * 0.25)
+      .id((d: OrcaNode) => d.id)
+      .strength((d: { weight?: number }) => (d.weight || 0.3) * 0.25)
       .distance(0.35)
     )
     .force('center', forceCenter(0, 0, 0).strength(0.005))
@@ -271,8 +271,8 @@ export async function createLayout(
       // Update simulation
       simulation.nodes(graph.nodes);
       simulation.force('link', forceLink([...links, ...newLinks])
-        .id((d: any) => d.id)
-        .strength((d: any) => (d.weight || 0.3) * 0.25)
+        .id((d: OrcaNode) => d.id)
+        .strength((d: { weight?: number }) => (d.weight || 0.3) * 0.25)
         .distance(0.35)
       );
       links.push(...newLinks);

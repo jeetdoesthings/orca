@@ -1,0 +1,3288 @@
+[
+  {
+    "id": "fbk_unexplored_hip-hop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "hip-hop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 37 unexplored artists waiting in hip-hop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "hip-hop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_trap",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "trap",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 19 unexplored artists waiting in trap.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "trap"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_rap",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "rap",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 29 unexplored artists waiting in rap.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "rap"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_eminem",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "eminem",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in eminem.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "eminem"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_pop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "pop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 29 unexplored artists waiting in pop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "pop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_indie-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "indie-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in indie-rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "indie-rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_house",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "house",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 5 unexplored artists waiting in house.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "house"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_indie",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "indie",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 15 unexplored artists waiting in indie.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "indie"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_indie-pop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "indie-pop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 9 unexplored artists waiting in indie pop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "indie pop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 10 unexplored artists waiting in rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_alternative",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "alternative",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 9 unexplored artists waiting in alternative.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "alternative"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_soundtrack",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "soundtrack",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 9 unexplored artists waiting in soundtrack.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "soundtrack"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_cinematic-classical",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "cinematic-classical",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in cinematic classical.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "cinematic classical"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_darksynth",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "darksynth",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in darksynth.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "darksynth"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_swedish",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "swedish",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in swedish.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "swedish"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_ambient",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "ambient",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 7 unexplored artists waiting in ambient.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "ambient"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_classical",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "classical",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 4 unexplored artists waiting in classical.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "classical"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_atlanta",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "atlanta",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 5 unexplored artists waiting in atlanta.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "atlanta"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_kanye-west",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "kanye-west",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in kanye west.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "kanye west"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_rnb",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "rnb",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 19 unexplored artists waiting in rnb.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "rnb"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_texas",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "texas",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in texas.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "texas"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_cloud-rap",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "cloud-rap",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in cloud rap.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "cloud rap"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_rage",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "rage",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in rage.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "rage"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_plugg",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "plugg",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in plugg.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "plugg"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_desi-hip-hop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "desi-hip-hop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in desi hip-hop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "desi hip-hop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_indian",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "indian",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 7 unexplored artists waiting in indian.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "indian"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_vocal",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "vocal",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in vocal.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "vocal"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_mexico",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "mexico",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in mexico.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "mexico"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_mexican",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "mexican",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in mexican.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "mexican"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_yucatan",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "yucatan",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in yucatan.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "yucatan"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_piano",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "piano",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in piano.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "piano"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_contemporary-classical",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "contemporary-classical",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in contemporary classical.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "contemporary classical"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_alternative-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "alternative-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in alternative-rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "alternative-rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_drill",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "drill",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in drill.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "drill"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_female-vocalists",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "female-vocalists",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 11 unexplored artists waiting in female vocalists.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "female vocalists"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_american",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "american",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in american.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "american"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_my-top-songs",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "my-top-songs",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in my top songs.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "my top songs"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_phonk",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "phonk",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in phonk.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "phonk"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_lo-fi",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "lo-fi",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 5 unexplored artists waiting in lo-fi.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "lo-fi"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_electronic",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "electronic",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 22 unexplored artists waiting in electronic.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "electronic"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_impressionism",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "impressionism",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in impressionism.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "impressionism"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_synthwave",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "synthwave",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in synthwave.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "synthwave"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_ambient-house",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "ambient-house",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in ambient house.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "ambient house"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_dance-pop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "dance-pop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in dance-pop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "dance-pop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_dance",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "dance",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 10 unexplored artists waiting in dance.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "dance"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_progressive-house",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "progressive-house",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in progressive house.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "progressive house"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_electro-house",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "electro-house",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in electro house.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "electro house"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_biracial",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "biracial",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in biracial.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "biracial"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_bridge_synthpop",
+    "type": "info",
+    "subjectType": "genre",
+    "subjectId": "synthpop",
+    "title": "Pathway Bridge Identified",
+    "message": "ORCA identified new connections. A sequencing journey into synthpop is now available.",
+    "severityScore": 0.65,
+    "confidence": 0.85,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [
+      {
+        "endpoint": "/api/journeys",
+        "payload": {
+          "destinationGenreId": "synthpop"
+        }
+      }
+    ],
+    "telemetryTags": [
+      "journey",
+      "bridge",
+      "synthpop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_synthpop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "synthpop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in synthpop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "synthpop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_mindset_synthpop",
+    "type": "success",
+    "subjectType": "genre",
+    "subjectId": "synthpop",
+    "title": "Optimal Mindset Synergy",
+    "message": "This genre matches your current focus and sensory mindset profile.",
+    "severityScore": 0.5,
+    "confidence": 0.8,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "mindset",
+      "synthpop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_loyal_synthpop",
+    "type": "success",
+    "subjectType": "genre",
+    "subjectId": "synthpop",
+    "title": "Core Tastes Established",
+    "message": "synthpop is now a cornerstone of your musical identity.",
+    "severityScore": 0.8,
+    "confidence": 0.95,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "identity",
+      "synthpop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_8-bit",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "8-bit",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in 8-bit.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "8-bit"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_new-wave",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "new-wave",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in new wave.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "new wave"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_chiptune",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "chiptune",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in chiptune.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "chiptune"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_80s",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "80s",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in 80s.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "80s"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_soul",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "soul",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 7 unexplored artists waiting in soul.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "soul"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_funk",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "funk",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in funk.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "funk"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_bollywood",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "bollywood",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 5 unexplored artists waiting in bollywood.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "bollywood"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_punjabi",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "punjabi",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in punjabi.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "punjabi"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_alternative-rnb",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "alternative-rnb",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in alternative rnb.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "alternative rnb"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_japanese",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "japanese",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in japanese.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "japanese"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_grime",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "grime",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in grime.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "grime"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_uk-drill",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "uk-drill",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in uk drill.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "uk drill"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_hindi",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "hindi",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 4 unexplored artists waiting in hindi.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "hindi"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_india",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "india",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in india.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "india"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_opium",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "opium",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in opium.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "opium"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_chillwave",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "chillwave",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in chillwave.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "chillwave"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_emo-rap",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "emo-rap",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in emo rap.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "emo rap"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_australian",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "australian",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in australian.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "australian"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_edm",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "edm",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in edm.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "edm"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_usa",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "usa",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in usa.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "usa"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_dream-pop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "dream-pop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 4 unexplored artists waiting in dream pop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "dream pop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_shoegaze",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "shoegaze",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in shoegaze.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "shoegaze"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_slowcore",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "slowcore",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in slowcore.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "slowcore"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_kuwait",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "kuwait",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in kuwait.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "kuwait"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_screamo",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "screamo",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in screamo.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "screamo"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_soundtack",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "soundtack",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in soundtack.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "soundtack"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_eurodance",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "eurodance",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in eurodance.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "eurodance"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_romanian",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "romanian",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in romanian.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "romanian"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_europop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "europop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in europop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "europop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_latin",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "latin",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in latin.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "latin"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_techno",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "techno",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in techno.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "techno"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_new-age",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "new-age",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in new age.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "new age"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_chillout",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "chillout",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 5 unexplored artists waiting in chillout.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "chillout"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_electronica",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "electronica",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in electronica.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "electronica"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_post-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "post-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in post-rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "post-rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_australia",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "australia",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in australia.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "australia"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_hip-hip",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "hip-hip",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in hip hip.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "hip hip"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_locked-in",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "locked-in",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in locked in.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "locked in"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_those-who-know",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "those-who-know",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in those who know.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "those who know"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_male-vocalists",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "male-vocalists",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in male vocalists.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "male vocalists"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_folk",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "folk",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in folk.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "folk"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_canadian",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "canadian",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in canadian.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "canadian"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_singer-songwriter",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "singer-songwriter",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in singer-songwriter.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "singer-songwriter"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_classic-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "classic-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in classic rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "classic rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_british",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "british",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in british.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "british"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_60s",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "60s",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in 60s.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "60s"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_blues",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "blues",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in blues.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "blues"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_chinese",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "chinese",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in chinese.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "chinese"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_china",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "china",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in china.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "china"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_cantonese",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "cantonese",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in cantonese.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "cantonese"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_pop-rap",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "pop-rap",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in pop rap.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "pop rap"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_scenecore",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "scenecore",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in scenecore.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "scenecore"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_hyperpop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "hyperpop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in hyperpop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "hyperpop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_lit",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "lit",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in lit.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "lit"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_trip-hop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "trip-hop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in trip-hop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "trip-hop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_downtempo",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "downtempo",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in downtempo.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "downtempo"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_dirty-south",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "dirty-south",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in dirty south.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "dirty south"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_oldies",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "oldies",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in oldies.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "oldies"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_easy-listening",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "easy-listening",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in easy listening.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "easy listening"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_disney",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "disney",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in disney.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "disney"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_pop-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "pop-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in pop rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "pop rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_turntablism",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "turntablism",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in turntablism.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "turntablism"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_electro",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "electro",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in electro.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "electro"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_scratch",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "scratch",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in scratch.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "scratch"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_neo-soul",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "neo-soul",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in neo-soul.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "neo-soul"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_p-funk",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "p-funk",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in p-funk.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "p-funk"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_bass",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "bass",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in bass.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "bass"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_funky",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "funky",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in funky.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "funky"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_reggaeton",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "reggaeton",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in reggaeton.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "reggaeton"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_big-beat",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "big-beat",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in big beat.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "big beat"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_trance",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "trance",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in trance.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "trance"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_experimental",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "experimental",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 4 unexplored artists waiting in experimental.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "experimental"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_psychedelic",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "psychedelic",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in psychedelic.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "psychedelic"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_christian-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "christian-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in christian rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "christian rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_christian",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "christian",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in christian.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "christian"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_french",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "french",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in french.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "french"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_stoner-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "stoner-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in stoner rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "stoner rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_garage-rock",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "garage-rock",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in garage rock.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "garage rock"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_instrumental",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "instrumental",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 5 unexplored artists waiting in instrumental.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "instrumental"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_composer",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "composer",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 3 unexplored artists waiting in composer.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "composer"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_video-game-music",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "video-game-music",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in video game music.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "video game music"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_black-metal",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "black-metal",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in black metal.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "black metal"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_justin-bieber",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "justin-bieber",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in justin bieber.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "justin bieber"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_afrobeats",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "afrobeats",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in afrobeats.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "afrobeats"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_female-vocalist",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "female-vocalist",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in female vocalist.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "female vocalist"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_uk",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "uk",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in uk.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "uk"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_cloud-rnb",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "cloud-rnb",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in cloud rnb.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "cloud rnb"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_r&b",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "r&b",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in r&b.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "r&b"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_canada",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "canada",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in canada.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "canada"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_dark",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "dark",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in dark.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "dark"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_bedroom-pop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "bedroom-pop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in bedroom pop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "bedroom pop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_chile",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "chile",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in chile.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "chile"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_reggaeton-chileno",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "reggaeton-chileno",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in reggaeton chileno.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "reggaeton chileno"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_malianteo",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "malianteo",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in malianteo.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "malianteo"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_los-patos-feos",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "los-patos-feos",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in los patos feos.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "los patos feos"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_ficha",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "ficha",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in ficha.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "ficha"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_a-r-rahman",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "a-r-rahman",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 2 unexplored artists waiting in a r rahman.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "a r rahman"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_world",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "world",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in world.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "world"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_mohit-chauhan",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "mohit-chauhan",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in mohit chauhan.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "mohit chauhan"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_soundtracks",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "soundtracks",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in soundtracks.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "soundtracks"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_ethereal",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "ethereal",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in ethereal.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "ethereal"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_gothic",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "gothic",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in gothic.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "gothic"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_film-music",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "film-music",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in film music.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "film music"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_remote-control-productions",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "remote-control-productions",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in remote control productions.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "remote control productions"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_score",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "score",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in score.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "score"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_united-kingdom",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "united-kingdom",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in united kingdom.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "united kingdom"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_gta-iv",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "gta-iv",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in gta iv.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "gta iv"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_gta",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "gta",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in gta.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "gta"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_massachusetts",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "massachusetts",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in massachusetts.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "massachusetts"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_southern-rap",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "southern-rap",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in southern rap.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "southern rap"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_afroswing",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "afroswing",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in afroswing.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "afroswing"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_uk-hip-hop",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "uk-hip-hop",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in uk hip hop.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "uk hip hop"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_sexy",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "sexy",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in sexy.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "sexy"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_russian",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "russian",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in russian.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "russian"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_dreamscape",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "dreamscape",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in dreamscape.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "dreamscape"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_darkwave",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "darkwave",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in darkwave.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "darkwave"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_coldwave",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "coldwave",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in coldwave.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "coldwave"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_unexplored_new-york",
+    "type": "nudge",
+    "subjectType": "genre",
+    "subjectId": "new-york",
+    "title": "Unexplored Artists Awaiting",
+    "message": "There are 1 unexplored artists waiting in new york.",
+    "severityScore": 0.4,
+    "confidence": 0.75,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [],
+    "telemetryTags": [
+      "discovery",
+      "new york"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_journey_milestone_cmqvzclne000v13wv3y5qbxu7",
+    "type": "info",
+    "subjectType": "journey",
+    "subjectId": "cmqvzclne000v13wv3y5qbxu7",
+    "title": "Journey Milestone Reached",
+    "message": "You've completed 2 steps on your path to Territory_v2_002.",
+    "severityScore": 0.7,
+    "confidence": 0.9,
+    "timestamp": "2026-06-29T06:46:34.936Z",
+    "expiresAt": "2026-06-30T06:46:34.936Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [
+      {
+        "endpoint": "/api/journeys/cmqvzclne000v13wv3y5qbxu7/continue",
+        "payload": {}
+      }
+    ],
+    "telemetryTags": [
+      "journey",
+      "milestone"
+    ],
+    "acknowledged": true
+  },
+  {
+    "id": "fbk_journey_milestone_cmqyux38c0003fr06fsf90w6u",
+    "type": "info",
+    "subjectType": "journey",
+    "subjectId": "cmqyux38c0003fr06fsf90w6u",
+    "title": "Journey Milestone Reached",
+    "message": "You've completed 2 steps on your path to Territory_v2_002.",
+    "severityScore": 0.7,
+    "confidence": 0.9,
+    "timestamp": "2026-06-29T06:48:58.682Z",
+    "expiresAt": "2026-06-30T06:48:58.682Z",
+    "relatedSnapshotVersion": "v4.0.0",
+    "actionsSuggested": [
+      {
+        "endpoint": "/api/journeys/cmqyux38c0003fr06fsf90w6u/continue",
+        "payload": {}
+      }
+    ],
+    "telemetryTags": [
+      "journey",
+      "milestone"
+    ],
+    "acknowledged": true
+  }
+]

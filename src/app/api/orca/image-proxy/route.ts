@@ -1,9 +1,39 @@
 import { NextRequest } from 'next/server';
 
+const ALLOWED_DOMAINS = [
+  'i.scdn.co',
+  'spotifycdn.com',
+  'scdn.co',
+  'dzcdn.net',
+  'deezer.com',
+  'last.fm',
+  'lastfm.freetls.fastly.net',
+  'fastly.net',
+  'audioscrobbler.com',
+  'wikimedia.org',
+  'wikipedia.org'
+];
+
+function isAllowedDomain(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    const hostname = parsed.hostname.toLowerCase();
+    return ALLOWED_DOMAINS.some(domain => 
+      hostname === domain || hostname.endsWith('.' + domain)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url');
   if (!url) {
     return new Response('Missing url parameter', { status: 400 });
+  }
+
+  if (!isAllowedDomain(url)) {
+    return new Response('Forbidden target URL domain', { status: 403 });
   }
 
   try {

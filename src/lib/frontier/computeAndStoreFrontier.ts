@@ -3,6 +3,12 @@ import type { OrcaNode } from '@/lib/graph/types';
 import { buildFrontierNodes } from './buildFrontierNodes';
 import { computeGenrePerimeter } from './genrePerimeter';
 import { computeAdventurousness } from '../metrics/adventurousness';
+import type { AdventurousnessMetric } from '../metrics/adventurousness';
+import { computeUserProfile } from '../profile/profile-engine';
+import { computeDiscoveryProfile } from '../profile/discovery-readiness';
+import { generateExplanations } from '../profile/explainer';
+import type { UserProfile } from '../profile/types';
+import { computeUserTerritoryMapping } from '../profile/territory-mapping';
 
 // List of all normalized biomes
 const GLOBE_BIOMES = [
@@ -30,7 +36,7 @@ export async function computeAndStoreFrontier(
     console.log(`[Frontier Background] Starting computation for user ${userId}...`);
     
     // 2. Fetch related artists and build frontier nodes
-    const frontierNodes = await buildFrontierNodes(exploredNodes, accessToken);
+    const frontierNodes = await buildFrontierNodes(exploredNodes, accessToken, userId);
 
     // 3. Compute perimeters for all biomes with enough nodes (>= 3)
     const perimeters = GLOBE_BIOMES.map(genre => {
@@ -51,7 +57,7 @@ export async function computeAndStoreFrontier(
       select: { adventurousnessHistory: true },
     });
 
-    let history: any[] = [];
+    let history: AdventurousnessMetric[] = [];
     if (user?.adventurousnessHistory) {
       try {
         history = JSON.parse(user.adventurousnessHistory);
@@ -79,6 +85,84 @@ export async function computeAndStoreFrontier(
         frontierComputedAt: new Date(),
       },
     });
+
+    // 6. Update user profile with the new frontier count and recalculate discovery metrics
+    try {
+      const userRecord = await prisma.user.findUnique({
+        where: { spotifyId: userId },
+        select: { profileData: true, globeData: true, lastSyncAt: true },
+      });
+
+      if (userRecord?.profileData) {
+        let exploredNodes: OrcaNode[] = [];
+        if (userRecord.globeData) {
+          exploredNodes = JSON.parse(userRecord.globeData).nodes || [];
+        }
+
+        const currentProfile: UserProfile = JSON.parse(userRecord.profileData);
+
+        // Determine if we are doing a post-sync patch (where profile was computed very recently during sync)
+        // or a post-explore run (where explored nodes actually changed).
+        const isPostSyncPatch = userRecord.lastSyncAt &&
+          Math.abs(new Date(userRecord.lastSyncAt).getTime() - new Date(currentProfile.updatedAt).getTime()) < 10 * 60 * 1000;
+
+        if (isPostSyncPatch) {
+          // Post-sync patch: only update the discovery profile and explanations to keep the sync-interval trends intact.
+          const updatedDiscovery = computeDiscoveryProfile(
+            exploredNodes,
+            frontierNodes.length,
+            currentProfile.discoveryProfile,
+          );
+          const updatedExplanations = generateExplanations(
+            currentProfile.sonicProfile,
+            currentProfile.traitProfile,
+            updatedDiscovery,
+            currentProfile.trajectoryProfile,
+            currentProfile.confidenceProfile,
+          );
+
+          currentProfile.discoveryProfile = updatedDiscovery;
+          currentProfile.explanations = updatedExplanations;
+          currentProfile.updatedAt = new Date().toISOString();
+
+          await prisma.user.update({
+            where: { spotifyId: userId },
+            data: {
+              profileData: JSON.stringify(currentProfile),
+              profileComputedAt: new Date(),
+            },
+          });
+        } else {
+          // Post-explore or manual update: compute the entire profile, treating currentProfile as the previous step.
+          const updatedProfile = computeUserProfile(
+            userId,
+            exploredNodes,
+            frontierNodes.length,
+            currentProfile,
+          );
+          await prisma.user.update({
+            where: { spotifyId: userId },
+            data: {
+              profileData: JSON.stringify(updatedProfile),
+              profileComputedAt: new Date(),
+              profileVersion: updatedProfile.version,
+            },
+          });
+        }
+
+        try {
+          console.log(`[Frontier Background] Computing user territory mapping for ${userId}...`);
+          await computeUserTerritoryMapping(userId);
+        } catch (territoryErr) {
+          console.error(
+            `[Frontier Background] Failed to compute territory mapping:`,
+            territoryErr instanceof Error ? territoryErr.message : String(territoryErr)
+          );
+        }
+      }
+    } catch (profileErr) {
+      console.error(`[Frontier Background] Failed to update user profile post-frontier for user ${userId}:`, profileErr);
+    }
 
     console.log(`[Frontier Background] Completed computation successfully for user ${userId}.`);
   } catch (error) {

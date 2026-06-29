@@ -1,10 +1,12 @@
-import { getCanonicalArtistId, getCanonicalArtistName, normaliseArtistName } from './identity';
+import { getCanonicalArtistId, getCanonicalArtistName } from './identity';
 import type { OrcaNode, OrcaEdge, OrcaGraph } from './graph/types';
 import { normaliseGenre, getGenreColor } from './graph/genre-normaliser';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const API_KEY = process.env.LASTFM_API_KEY || '***REDACTED-LASTFM-KEY***';
+const API_KEY = process.env.LASTFM_API_KEY || (process.env.NODE_ENV === 'production'
+  ? (() => { throw new Error('LASTFM_API_KEY must be set in production!'); })()
+  : '***REDACTED-LASTFM-KEY***');
 const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 const CACHE_FILE_PATH = path.join(process.cwd(), 'src/lib/graph/orca-cache.json');
 
@@ -452,9 +454,9 @@ async function fetchSpotifyArtist(name: string): Promise<{ popularity: number; g
     const artist = data?.artists?.items?.[0];
     if (!artist) return null;
 
-    const images = artist.images || [];
+    const images: Array<{ url: string; width: number }> = artist.images || [];
     const imageUrl =
-      images.find((img: any) => img.width >= 150 && img.width <= 320)?.url ??
+      images.find((img) => img.width >= 150 && img.width <= 320)?.url ??
       images[images.length - 1]?.url ??
       '';
 

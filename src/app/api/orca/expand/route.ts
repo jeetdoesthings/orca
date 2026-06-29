@@ -1,14 +1,20 @@
-/**
- * POST /api/orca/expand
- * Last.fm-based music discovery graph dynamic expansion.
- */
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/route';
 import { expandLastFmGraph } from '@/lib/lastfm';
 
 const MAX_EXPAND_BATCH = 10;
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const url = new URL(request.url);
+    const isDemo = url.searchParams.get('demo') === 'true';
+
+    if (!isDemo && (!session || !session.user)) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
     const body = await request.json();
     const artistIds: string[] = (body.artistIds || []).slice(0, MAX_EXPAND_BATCH);
 

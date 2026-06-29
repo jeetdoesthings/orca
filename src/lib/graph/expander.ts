@@ -2,7 +2,7 @@
  * Graph expansion: merge new data, identify frontier candidates.
  */
 import type { OrcaNode, OrcaEdge, OrcaGraph } from './types';
-import { buildGraph, genreToColor } from './builder';
+import { buildGraph } from './builder';
 
 /**
  * Merge newly fetched nodes and edges into an existing graph.

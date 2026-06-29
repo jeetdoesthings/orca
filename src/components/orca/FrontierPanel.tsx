@@ -9,6 +9,7 @@ import { useOrcaStore } from '@/store/orca';
 import { getGenreColor, normaliseGenre, GENRE_LABELS } from '@/lib/graph/genre-normaliser';
 // Audio previews disabled
 import type { OrcaNode } from '@/lib/graph/types';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface FrontierPanelProps {
   onClose: () => void;
@@ -53,6 +54,19 @@ export function FrontierPanel({ onClose }: FrontierPanelProps) {
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {/* Close button */}
+      <button
+        type="button"
+        className="orca-artist-panel-close"
+        onClick={onClose}
+        aria-label="Close unexplored panel"
+        style={{ top: '16px', right: '16px' }} // slightly override for alignment
+      >
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
       {/* Header */}
       <div
         style={{
@@ -71,28 +85,6 @@ export function FrontierPanel({ onClose }: FrontierPanelProps) {
             {frontierNodes.length} artists adjacent to your taste
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            background: 'rgba(0,0,0,0.05)',
-            border: 'none',
-            borderRadius: '50%',
-            cursor: 'pointer',
-            color: 'rgba(0,0,0,0.45)',
-            fontSize: '16px',
-            width: '26px',
-            height: '26px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.08)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
-        >
-          ×
-        </button>
       </div>
 
       {/* Scrollable list container */}
@@ -136,7 +128,7 @@ export function FrontierPanel({ onClose }: FrontierPanelProps) {
                   color: 'rgba(0,0,0,0.38)',
                 }}
               >
-                {(GENRE_LABELS as any)[genre] || genre.replace(/-/g, ' ')}
+                {(GENRE_LABELS as Record<string, string>)[genre] || genre.replace(/-/g, ' ')}
               </span>
             </div>
 
@@ -153,10 +145,17 @@ export function FrontierPanel({ onClose }: FrontierPanelProps) {
   );
 }
 
+function artistImgSrc(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('/api/') || url.startsWith('data:')) return url;
+  return `/api/orca/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function FrontierArtistRow({ artist }: { artist: OrcaNode }) {
   const [hovering, setHovering] = useState(false);
   const [status, setStatus] = useState<'idle' | 'adding' | 'done'>('idle');
-  const [imageUrl, setImageUrl] = useState(artist.imageUrl || '');
+  const [imageUrl, setImageUrl] = useState(artist.imageUrl ? artistImgSrc(artist.imageUrl) : '');
+  const [imageError, setImageError] = useState(false);
   const transitionNodeToExplored = useOrcaStore(s => s.transitionNodeToExplored);
   const revertNodeTransition = useOrcaStore(s => s.revertNodeTransition);
   const setPinnedNode = useOrcaStore(s => s.setPinnedNode);
@@ -167,20 +166,23 @@ function FrontierArtistRow({ artist }: { artist: OrcaNode }) {
 
   useEffect(() => {
     if (!artist.imageUrl) {
-      fetch(`/api/orca/image?artist=${encodeURIComponent(artist.name)}`)
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const searchSuffix = search ? '&' + search.substring(1) : '';
+      fetch(`/api/orca/image?artist=${encodeURIComponent(artist.name)}${searchSuffix}`)
         .then(res => {
           if (res.ok) return res.json();
           throw new Error('Failed');
         })
         .then(data => {
           if (data && data.imageUrl) {
-            setImageUrl(data.imageUrl);
-            artist.imageUrl = data.imageUrl; // mutate store reference cache
+            const proxied = artistImgSrc(data.imageUrl);
+            setImageUrl(proxied);
+            artist.imageUrl = proxied; // mutate store reference cache
           }
         })
         .catch(() => {});
     } else {
-      setImageUrl(artist.imageUrl);
+      setImageUrl(artistImgSrc(artist.imageUrl));
     }
   }, [artist.imageUrl, artist.name]);
 
@@ -248,8 +250,15 @@ function FrontierArtistRow({ artist }: { artist: OrcaNode }) {
           border: '1px solid rgba(0, 0, 0, 0.05)',
         }}
       >
-        {imageUrl ? (
-          <img src={imageUrl} width={28} height={28} style={{ borderRadius: '50%', objectFit: 'cover' }} alt={artist.name} />
+        {imageUrl && !imageError ? (
+          <img 
+            src={imageUrl} 
+            width={28} 
+            height={28} 
+            style={{ borderRadius: '50%', objectFit: 'cover' }} 
+            alt={artist.name} 
+            onError={() => setImageError(true)}
+          />
         ) : (
           <div
             style={{
@@ -285,34 +294,40 @@ function FrontierArtistRow({ artist }: { artist: OrcaNode }) {
       </div>
 
       {/* Explore button */}
-      <button
-        type="button"
-        onClick={handleExplore}
-        disabled={status !== 'idle'}
-        style={{
-          background: 'none',
-          border: '1px solid rgba(0,0,0,0.12)',
-          borderRadius: '100px',
-          padding: '3px 10px',
-          fontSize: '10.5px',
-          fontWeight: 600,
-          color: 'rgba(0,0,0,0.5)',
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          transition: 'all 0.2s',
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(0,0,0,0.25)';
-          e.currentTarget.style.color = '#111118';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)';
-          e.currentTarget.style.color = 'rgba(0,0,0,0.5)';
-        }}
-      >
-        {status === 'adding' ? 'Adding…' : status === 'done' ? 'Added' : 'Explore'}
-      </button>
+      <Tooltip position="left" content="Open this artist on Spotify and add to your library">
+        <button
+          type="button"
+          onClick={handleExplore}
+          disabled={status !== 'idle'}
+          style={{
+            background: 'rgba(0, 0, 0, 0.04)',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            borderRadius: '100px',
+            padding: '3px 10px',
+            fontSize: '10.5px',
+            fontWeight: 600,
+            color: 'rgba(0, 0, 0, 0.65)',
+            cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif",
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+            transition: 'background 0.2s, border-color 0.2s, transform 0.1s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.08)';
+            e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.12)';
+            e.currentTarget.style.transform = 'translateY(-0.5px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.04)';
+            e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.08)';
+            e.currentTarget.style.transform = 'translateY(0)';
+          }}
+        >
+          {status === 'adding' ? 'Exploring…' : status === 'done' ? 'Explored' : 'Explore'}
+        </button>
+      </Tooltip>
     </div>
   );
 }
