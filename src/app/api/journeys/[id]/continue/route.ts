@@ -40,10 +40,13 @@ export async function POST(
 
     // Step logic: Increment step locally or simulate milestones.
     // In our simplified database model, step status is derived. We can return success.
+    const { triggerWorldRegeneration } = await import('@/lib/frontier/world-regeneration');
+    await triggerWorldRegeneration(userId);
+
     return NextResponse.json({
       status: 'success',
       journeyId: id,
-      currentStep: 3 // advanced step
+      currentStep: 3
     });
 
   } catch (error: any) {

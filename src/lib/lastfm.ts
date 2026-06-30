@@ -508,7 +508,7 @@ export async function expandLastFmGraph(artistIds: string[], maxSimilar = 5): Pr
         
         const primaryGenre = existing.genres[0] || 'pop';
         const pop = spotifyData ? spotifyData.popularity : Math.max(10, existing.popularity - 10);
-        const genresList = spotifyData && spotifyData.genres.length > 0 ? spotifyData.genres : [primaryGenre];
+        const genresList = spotifyData && spotifyData.genres && spotifyData.genres.length > 0 ? spotifyData.genres : [primaryGenre];
         const imageUrl = spotifyData ? spotifyData.imageUrl : '';
         
         // Build new Spotify-populated frontier node

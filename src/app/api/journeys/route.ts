@@ -68,6 +68,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    const { triggerWorldRegeneration } = await import('@/lib/frontier/world-regeneration');
+    await triggerWorldRegeneration(userId);
+
     return NextResponse.json({
       status: 'success',
       journeyId: intervention.id,

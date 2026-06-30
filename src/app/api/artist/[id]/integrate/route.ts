@@ -61,6 +61,10 @@ export async function POST(
       update: {}
     });
 
+    // Invalidate state and recompute frontier
+    const { triggerWorldRegeneration } = await import('@/lib/frontier/world-regeneration');
+    await triggerWorldRegeneration(userId);
+
     return NextResponse.json({
       status: 'success',
       artistId: id,

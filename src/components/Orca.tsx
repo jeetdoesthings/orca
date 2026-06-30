@@ -570,15 +570,27 @@ export function Orca() {
           }, 3000);
         }
 
+        let lastSnapshotVersion = 0;
+
         // Background polling for Dynamic Backend Synchronization
         if (layoutRef.current) {
           pollInterval = setInterval(async () => {
             if (cancelled) return;
             try {
-              const res = await fetch(`/api/globe${search}`);
+              const res = await fetch(`/api/globe${search ? search + '&' : '?'}version=${lastSnapshotVersion}`);
               if (!res.ok) return;
               const data = await res.json();
               if (data.status === 'ready') {
+                if (data.upToDate) {
+                  return;
+                }
+                lastSnapshotVersion = data.snapshotVersion || 0;
+                if (data.frontierNodes) {
+                  useOrcaStore.getState().setFrontierNodes(data.frontierNodes);
+                }
+                if (data.worldDelta) {
+                  console.log('[Delta Sync] Received world delta:', data.worldDelta);
+                }
                 const currentStore = useOrcaStore.getState();
                 const currentGraph = currentStore.graph;
                 if (!currentGraph) return;

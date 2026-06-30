@@ -285,7 +285,7 @@ export function computeUserProfile(
   };
 
   // ── Step 4: Trait Profile Layer ───────────────────────────────────
-  const previousTraitScores = previousProfile?.traitProfile.scores ?? null;
+  const previousTraitScores = previousProfile?.traitProfile?.scores ?? null;
   const traitScores = computeAllTraitScores(
     sonicProfile.centroid,
     metaSignals,

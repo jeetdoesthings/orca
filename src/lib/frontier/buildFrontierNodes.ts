@@ -7,6 +7,7 @@ import { fetchLastFmSimilarArtists } from '../lastfm';
 import { getCanonicalArtistName, getStandardisedComparisonKey } from '../identity';
 import fs from 'fs';
 import path from 'path';
+import { readWorldState, writeWorldState } from './world-state-store';
 
 const CACHE_FILE = path.join(process.cwd(), 'src/lib/frontier/spotify-artists-cache.json');
 
@@ -435,6 +436,23 @@ export async function buildFrontierNodes(
     })
   ]);
 
+function getTerritoryIdForGenre(genre: string): string {
+  const g = genre.toLowerCase();
+  if (['hip-hop', 'drill', 'rap'].some(x => g.includes(x))) {
+    return 'Territory_v2_002';
+  }
+  if (['soundtrack', 'bollywood', 'hindi', 'indian', 'world-music'].some(x => g.includes(x))) {
+    return 'Territory_v2_003';
+  }
+  if (['pop', 'rnb', 'soul', 'funk', 'dance-pop', 'indie-pop'].some(x => g.includes(x))) {
+    return 'Territory_v2_004';
+  }
+  if (['rock', 'alternative', 'punk', 'metal', 'folk', 'jazz', 'classical', 'country', 'indie-rock'].some(x => g.includes(x))) {
+    return 'Territory_v2_005';
+  }
+  return 'Territory_v2_001';
+}
+
   const affinityMap = new Map(affinities.map(a => [a.territoryId, a.compatibilityScore]));
   const relationshipMap = new Map(relationships.map(r => [r.territoryId, r]));
   const memoryMap = new Map(memories.map(m => [m.artistId, m.persistence]));
@@ -457,10 +475,11 @@ export async function buildFrontierNodes(
 
   for (const [artistId, { artist, adjacentTo }] of candidateMap) {
     const normalisedGenre = normaliseGenre(artist.genres);
-    const affinityScore = affinityMap.get(normalisedGenre) ?? 0.5;
+    const territoryId = getTerritoryIdForGenre(normalisedGenre);
+    const affinityScore = affinityMap.get(territoryId) ?? 0.5;
     const compatibility = Math.round(affinityScore * 100);
 
-    const relRow = relationshipMap.get(normalisedGenre);
+    const relRow = relationshipMap.get(territoryId);
     const relState = relRow?.currentState || 'UNEXPLORED';
     const relConfidence = relRow?.stateConfidence ?? 0.8;
     
@@ -593,5 +612,74 @@ export async function buildFrontierNodes(
   }
 
   console.log(`[OCSE] Selected ${finalNodes.length} nodes from ${candidateMap.size} candidates.`);
-  return finalNodes.slice(0, 150);
+
+  const worldState = readWorldState(currentUserId);
+  const nowStr = new Date().toISOString();
+
+  const candidatesWithMetrics = finalNodes.map(node => {
+    let metrics = worldState.nodeMetrics[node.id];
+    if (!metrics) {
+      metrics = {
+        lastEvaluated: nowStr,
+        lastVisible: new Date(0).toISOString(),
+        timesShown: 0,
+        timesIgnored: 0,
+        timesIntegrated: 0,
+        visibilityCooldown: 0
+      };
+      worldState.nodeMetrics[node.id] = metrics;
+    }
+    metrics.lastEvaluated = nowStr;
+
+    node.lastEvaluated = metrics.lastEvaluated;
+    node.lastVisible = metrics.lastVisible;
+    node.timesShown = metrics.timesShown;
+    node.timesIgnored = metrics.timesIgnored;
+    node.timesIntegrated = metrics.timesIntegrated;
+    node.visibilityCooldown = metrics.visibilityCooldown;
+
+    return { node, metrics };
+  });
+
+  candidatesWithMetrics.sort((a, b) => {
+    const aJourney = a.node.semanticRole === 'JOURNEY_TARGET' ? 1 : 0;
+    const bJourney = b.node.semanticRole === 'JOURNEY_TARGET' ? 1 : 0;
+    if (aJourney !== bJourney) return bJourney - aJourney;
+
+    const aCool = a.metrics.visibilityCooldown > 0 ? 1 : 0;
+    const bCool = b.metrics.visibilityCooldown > 0 ? 1 : 0;
+    if (aCool !== bCool) return aCool - bCool;
+
+    if (a.metrics.timesShown !== b.metrics.timesShown) {
+      return a.metrics.timesShown - b.metrics.timesShown;
+    }
+
+    return (b.node.candidateIntelligence?.compatibility ?? 0) - (a.node.candidateIntelligence?.compatibility ?? 0);
+  });
+
+  const visibleCandidates = candidatesWithMetrics.slice(0, 120);
+  const hiddenCandidates = candidatesWithMetrics.slice(120);
+
+  visibleCandidates.forEach(c => {
+    c.metrics.timesShown++;
+    c.metrics.lastVisible = nowStr;
+    if (c.metrics.visibilityCooldown > 0) {
+      c.metrics.visibilityCooldown--;
+    }
+    c.node.timesShown = c.metrics.timesShown;
+    c.node.lastVisible = c.metrics.lastVisible;
+  });
+
+  hiddenCandidates.forEach(c => {
+    if (c.metrics.timesShown > 0 && c.metrics.visibilityCooldown === 0) {
+      c.metrics.visibilityCooldown = 2;
+    }
+  });
+
+  worldState.visibleNodeIds = visibleCandidates.map(c => c.node.id);
+  worldState.snapshotVersion++;
+  worldState.lastGeneratedAt = nowStr;
+  writeWorldState(currentUserId, worldState);
+
+  return visibleCandidates.map(c => c.node);
 }

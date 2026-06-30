@@ -49,6 +49,29 @@ export async function POST(
       }
     });
 
+    // Update ignore freshness metrics in world state
+    const { readWorldState, writeWorldState } = await import('@/lib/frontier/world-state-store');
+    const state = readWorldState(userId);
+    let metrics = state.nodeMetrics[id];
+    if (!metrics) {
+      metrics = {
+        lastEvaluated: new Date().toISOString(),
+        lastVisible: new Date(0).toISOString(),
+        timesShown: 0,
+        timesIgnored: 0,
+        timesIntegrated: 0,
+        visibilityCooldown: 0
+      };
+      state.nodeMetrics[id] = metrics;
+    }
+    metrics.timesIgnored++;
+    metrics.visibilityCooldown = metrics.timesIgnored * 3;
+    writeWorldState(userId, state);
+
+    // Invalidate state and recompute frontier
+    const { triggerWorldRegeneration } = await import('@/lib/frontier/world-regeneration');
+    await triggerWorldRegeneration(userId);
+
     return NextResponse.json({
       status: 'success',
       artistId: id,

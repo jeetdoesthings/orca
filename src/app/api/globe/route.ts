@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         globeData: true,
         homeRegion: true,
         profileData: true,
+        frontierData: true,
       }
     });
 
@@ -40,9 +41,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: 'syncing' });
     }
 
+    const clientVersion = parseInt(url.searchParams.get('version') || '0', 10);
+
     const graphData = JSON.parse(dbUser.globeData);
     const nodes = graphData.nodes || [];
     const edges = graphData.edges || [];
+    let frontierNodes: any[] = [];
+    try {
+      if (dbUser.frontierData) {
+        frontierNodes = JSON.parse(dbUser.frontierData);
+      }
+    } catch {}
 
     // Retrieve all active and template journeys for Layer 8 Journey Sequencing
     const activeIntervention = await prisma.longitudinalIntervention.findFirst({
@@ -249,11 +258,47 @@ export async function GET(request: NextRequest) {
       } catch {}
     }
 
+    const { readWorldState, writeWorldState } = await import('@/lib/frontier/world-state-store');
+    const { computeWorldDelta } = await import('@/lib/frontier/world-regeneration');
+    const worldState = readWorldState(userId);
+
+    const snapshotVersion = worldState.snapshotVersion;
+    const candidateUniverseVersion = worldState.candidateUniverseVersion;
+    const ocseVersion = worldState.ocseEvaluationVersion;
+    const generatedAt = worldState.lastGeneratedAt;
+    const worldDeltaId = `delta_${snapshotVersion}`;
+
+    if (clientVersion === snapshotVersion) {
+      return NextResponse.json({
+        status: 'ready',
+        snapshotVersion,
+        candidateUniverseVersion,
+        ocseVersion,
+        generatedAt,
+        worldDeltaId,
+        upToDate: true
+      });
+    }
+
+    const previousNodes = worldState.lastNodes || [];
+    const currentNodes = [...enrichedNodes, ...frontierNodes];
+    const worldDelta = computeWorldDelta(previousNodes, currentNodes);
+
+    worldState.lastNodes = currentNodes;
+    writeWorldState(userId, worldState);
+
     const response = NextResponse.json({
       status: 'ready',
+      snapshotVersion,
+      candidateUniverseVersion,
+      ocseVersion,
+      generatedAt,
+      worldDeltaId,
+      worldDelta,
       nodes: enrichedNodes,
       edges: enrichedEdges,
       genres: enrichedGenres,
+      frontierNodes,
       journey: activeJourneyDetails,
       userPosition,
       homeRegion: {

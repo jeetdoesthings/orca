@@ -69,6 +69,14 @@ export interface OrcaNode {
   candidateIntelligence?: CandidateIntelligence;
   semanticRole?: 'REACHABLE' | 'BRIDGE' | 'JOURNEY_TARGET' | 'RECOVERY' | 'HIDDEN_POTENTIAL' | 'IDENTITY_REINFORCEMENT' | 'DORMANT_MEMORY';
   
+  // Reachability freshness tracking metrics
+  lastEvaluated?: string;
+  lastVisible?: string;
+  timesShown?: number;
+  timesIgnored?: number;
+  timesIntegrated?: number;
+  visibilityCooldown?: number;
+  
   discoveredRecently?: boolean;
   memoryContribution?: number;
   availableActions?: {
@@ -253,6 +261,17 @@ export interface ObservationRule {
 
 export interface ObservationTriggerPayload {
   timestamp?: string;
+}
+
+export interface WorldDelta {
+  addedReachable: any[]; // OrcaNode array
+  removedReachable: string[]; // artistId array
+  roleChanges: Array<{ id: string; role: string }>;
+  journeyChanges: any;
+  identityChanges: any;
+  opportunityChanges: any;
+  bridgeChanges: any;
+  recoveryChanges: any;
 }
 
 /** Interface for the force-directed layout engine */
