@@ -10,6 +10,55 @@ const SPOTIFY_SCOPES = [
   'user-read-private',
 ].join(' ');
 
+interface RefreshResult {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+}
+
+/**
+ * Audit fix M7: dedupe Spotify token refresh. The jwt callback runs on every
+ * request past expiry; without this, N concurrent requests each issued their
+ * own refresh call. In-flight refreshes are shared per refresh token.
+ */
+const refreshInFlight = new Map<string, Promise<RefreshResult>>();
+
+async function refreshSpotifyToken(refreshToken: string): Promise<RefreshResult> {
+  const existing = refreshInFlight.get(refreshToken);
+  if (existing) return existing;
+
+  const p = (async () => {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(
+          `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
+        ).toString('base64')}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+
+    const refreshed = await response.json();
+    if (!response.ok) throw refreshed;
+
+    return {
+      accessToken: refreshed.access_token as string,
+      refreshToken: refreshed.refresh_token as string | undefined,
+      expiresAt: Date.now() + refreshed.expires_in * 1000,
+    };
+  })();
+
+  refreshInFlight.set(refreshToken, p);
+  p.finally(() => refreshInFlight.delete(refreshToken)).catch(() => {
+    /* rejection is delivered to the awaiting callers */
+  });
+  return p;
+}
+
 export const authOptions: AuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'production'
     ? (() => { throw new Error('NEXTAUTH_SECRET must be set in production!'); })()
@@ -45,37 +94,25 @@ export const authOptions: AuthOptions = {
         await prisma.user.update({
           where: { id: user.id },
           data: { spotifyId },
-        }).catch(err => console.error('Failed to update user spotifyId in jwt:', err));
+        }).catch((err: any) => console.error('Failed to update user spotifyId in jwt:', err));
       }
 
       // Check if access token is still valid
       if (Date.now() > (token.spotifyTokenExpiry as number)) {
-        try {
-          const response = await fetch('https://accounts.spotify.com/api/token', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              Authorization: `Basic ${Buffer.from(
-                `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-              ).toString('base64')}`,
-            },
-            body: new URLSearchParams({
-              grant_type: 'refresh_token',
-              refresh_token: token.spotifyRefreshToken as string,
-            }),
-          });
-
-          const refreshed = await response.json();
-          if (!response.ok) throw refreshed;
-
-          token.spotifyAccessToken = refreshed.access_token;
-          token.spotifyTokenExpiry = Date.now() + refreshed.expires_in * 1000;
-          if (refreshed.refresh_token) {
-            token.spotifyRefreshToken = refreshed.refresh_token;
-          }
-        } catch (error) {
-          console.error('Error refreshing access token:', error);
+        if (!token.spotifyRefreshToken) {
           token.error = 'RefreshTokenError';
+        } else {
+          try {
+            const result = await refreshSpotifyToken(token.spotifyRefreshToken as string);
+            token.spotifyAccessToken = result.accessToken;
+            token.spotifyTokenExpiry = result.expiresAt;
+            if (result.refreshToken) {
+              token.spotifyRefreshToken = result.refreshToken;
+            }
+          } catch (error) {
+            console.error('Error refreshing access token:', error);
+            token.error = 'RefreshTokenError';
+          }
         }
       }
       return token;

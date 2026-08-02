@@ -1,4 +1,15 @@
-import { NextResponse } from 'next/server';
+import { createHash, timingSafeEqual } from 'crypto';
+
+/**
+ * Constant-time string comparison. Both sides are hashed to fixed length so
+ * `timingSafeEqual` (which requires equal-length buffers) works regardless of
+ * the input lengths, avoiding a length-leaking early return.
+ */
+export function safeEqual(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest();
+  const hb = createHash('sha256').update(b).digest();
+  return timingSafeEqual(ha, hb);
+}
 
 /**
  * Validates whether the incoming request is authorized as an administrator.
@@ -20,5 +31,7 @@ export function verifyAdminRequest(request: Request): boolean {
 
   // Support both "Bearer <token>" and direct "<token>"
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-  return token === adminSecret;
+  // Audit fix: constant-time comparison (was a plain string === that leaks
+  // length and is not constant-time).
+  return safeEqual(token, adminSecret);
 }
