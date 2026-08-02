@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { resolveDemoUser } from '@/lib/auth/demo-user';
 
 export async function POST(
   request: NextRequest,
@@ -14,14 +15,11 @@ export async function POST(
 
     let userId: string;
     if (isDemo) {
-      const demoUser = await prisma.user.findFirst({
-        where: { syncStatus: 'COMPLETE' },
-        select: { spotifyId: true },
-      });
-      if (!demoUser) {
+      const demoId = await resolveDemoUser();
+      if (!demoId) {
         return NextResponse.json({ error: 'No demo data available' }, { status: 404 });
       }
-      userId = demoUser.spotifyId!;
+      userId = demoId;
     } else {
       const session = await getServerSession(authOptions);
       if (!session || !session.user || !(session as any).user.spotifyId) {

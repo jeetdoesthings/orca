@@ -281,11 +281,55 @@ async function resolveWithCoalescing(
   if (inFlight.has(key)) return inFlight.get(key)!;
 
   const promise = (async () => {
-    // Prioritize Deezer as the primary engine to ensure accurate, high-quality music catalog images 
-    // and completely bypass general Wikipedia search query collisions (like anatomy photos for the band "Bicep"!).
-    const engines: Array<'spotify' | 'musicbrainz' | 'wikipedia' | 'deezer'> =
-      ['spotify', 'deezer', 'wikipedia', 'musicbrainz'];
+    // 0. Local Artist catalog (fast path after backfill / materialize)
+    try {
+      const { prisma } = await import('@/lib/prisma');
+      const { normalizeArtistName, isWeakImageUrl } = await import(
+        '@/lib/artists/enrich-identity'
+      );
+      const row = await prisma.artist.findFirst({
+        where: { normalizedName: normalizeArtistName(artistName) },
+        select: { imageUrl: true },
+      });
+      if (row?.imageUrl && !isWeakImageUrl(row.imageUrl)) {
+        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(row.imageUrl)}`;
+        return { imageUrl: proxiedUrl, source: 'catalog' };
+      }
+    } catch {
+      /* fall through */
+    }
 
+    // 1. Canonical enrich (Spotify → Deezer-first → Last.fm → MB/Wiki)
+    try {
+      const { enrichArtistIdentity, isWeakImageUrl, persistArtistImageAndGenres } =
+        await import('@/lib/artists/enrich-identity');
+      const enr = await enrichArtistIdentity({ name: artistName, popularity });
+      if (enr.imageUrl && !isWeakImageUrl(enr.imageUrl)) {
+        void persistArtistImageAndGenres({
+          id: enr.spotifyId || `name-${key}`,
+          name: artistName,
+          imageUrl: enr.imageUrl,
+          genres: enr.genres,
+          popularity: enr.popularity,
+          spotifyId: enr.spotifyId,
+        });
+        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(enr.imageUrl)}`;
+        return {
+          imageUrl: proxiedUrl,
+          source: enr.sources[0] || 'enrich',
+        };
+      }
+    } catch {
+      /* fall through to legacy engines */
+    }
+
+    // 2. Legacy engine cascade (Deezer before Wikipedia to avoid false hits)
+    const engines: Array<'spotify' | 'deezer' | 'wikipedia' | 'musicbrainz'> = [
+      'spotify',
+      'deezer',
+      'wikipedia',
+      'musicbrainz',
+    ];
     for (const engine of engines) {
       const resolvedUrl = await resolveImageByEngine(engine, artistName);
       if (resolvedUrl) {
@@ -309,6 +353,16 @@ export async function GET(request: NextRequest) {
 
   if (!isDemo && (!session || !session.user)) {
     return new NextResponse('Unauthorized', { status: 401 });
+  }
+  if (isDemo) {
+    // Audit fix H1: demo mode resolves ONLY the explicit demo-user row, never
+    // the first real synced user (the former findFirst fallback was a
+    // cross-user data path).
+    const { resolveDemoUser } = await import('@/lib/auth/demo-user');
+    const demoId = await resolveDemoUser();
+    if (!demoId) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
   }
 
   const artist = request.nextUrl.searchParams.get('artist');

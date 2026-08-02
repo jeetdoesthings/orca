@@ -3,22 +3,42 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildGenreSnapshot, buildArtistSnapshot } from '@/lib/graph/genre-intelligence-builder';
+import { readWorldState } from '@/lib/frontier/world-state-store';
+import {
+  projectWorld,
+  buildUnexploredByTerritory,
+} from '@/lib/frontier/world-projection';
+import type { DepthBandId } from '@/lib/config/world';
+import { parseRequestRuntimeConfig } from '@/lib/config/request-runtime';
+import { assessUserColdStart } from '@/lib/identity/cold-start';
+import { resolveDemoUser } from '@/lib/auth/demo-user';
 
+/**
+ * Canonical GET — pure projection of the user's already-materialized world.
+ * Does NOT rebuild the frontier or mutate process.env.
+ * Explicit rebuild: POST /api/world/regenerate (or integrate/ignore/explore paths).
+ */
 export async function GET(request: NextRequest) {
+  // Request-scoped config only — never mutates process.env (RULE-8).
+  // regenerate=true on GET is ignored (logged); clients must POST to regenerate.
+  const runtimeConfig = parseRequestRuntimeConfig(request);
+  if (runtimeConfig.regenerate) {
+    console.warn(
+      '[/api/globe] regenerate requested on GET — ignored. Use POST /api/world/regenerate.',
+    );
+  }
+
   try {
     const url = new URL(request.url);
     const isDemo = url.searchParams.get('demo') === 'true';
 
     let userId: string;
     if (isDemo) {
-      const demoUser = await prisma.user.findFirst({
-        where: { syncStatus: 'COMPLETE' },
-        select: { spotifyId: true },
-      });
-      if (!demoUser) {
+      const demoId = await resolveDemoUser();
+      if (!demoId) {
         return NextResponse.json({ error: 'No demo data available' }, { status: 404 });
       }
-      userId = demoUser.spotifyId!;
+      userId = demoId;
     } else {
       const session = await getServerSession(authOptions);
       if (!session || !session.user || !(session as any).user.spotifyId) {
@@ -33,7 +53,8 @@ export async function GET(request: NextRequest) {
         globeData: true,
         homeRegion: true,
         profileData: true,
-      }
+        frontierStatus: true,
+      },
     });
 
     if (!dbUser || !dbUser.globeData) {
@@ -44,75 +65,6 @@ export async function GET(request: NextRequest) {
     const nodes = graphData.nodes || [];
     const edges = graphData.edges || [];
 
-    // Retrieve all active and template journeys for Layer 8 Journey Sequencing
-    const activeIntervention = await prisma.longitudinalIntervention.findFirst({
-      where: { userId, state: 'ACTIVE' },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    let journeyArtistIds = new Set<string>();
-    const journeyRolesMap = new Map<string, string>();
-    const journeyNodeIndexes = new Map<string, number>();
-    let activeJourneyTargetTerritory = '';
-    let activeJourneyDetails: any = null;
-
-    if (activeIntervention) {
-      const template = await prisma.globalPathwayTemplate.findFirst({
-        where: { targetTerritory: activeIntervention.targetTerritoryId }
-      });
-      if (template) {
-        try {
-          const artistIds: string[] = JSON.parse(template.pathwayNodes);
-          artistIds.forEach((id, index) => {
-            journeyArtistIds.add(id);
-            journeyNodeIndexes.set(id, index);
-            
-            let role: string;
-            if (index === 0) role = 'ANCHOR';
-            else if (index === artistIds.length - 1) role = 'DESTINATION';
-            else if (index === 1 && artistIds.length > 3) role = 'BRIDGE';
-            else role = 'INTERMEDIATE';
-
-            journeyRolesMap.set(id, role);
-          });
-          activeJourneyTargetTerritory = activeIntervention.targetTerritoryId;
-
-          // Build Journey Snapshot
-          activeJourneyDetails = {
-            active: true,
-            id: activeIntervention.id,
-            title: `Journey to ${activeIntervention.targetTerritoryId}`,
-            targetTerritory: activeIntervention.targetTerritoryId,
-            currentStep: 2,
-            totalSteps: artistIds.length,
-            progressPercent: Math.round((2 / artistIds.length) * 100),
-            steps: artistIds.map((id, idx) => ({
-              position: idx + 1,
-              artistId: id,
-              artistName: id, // resolved client-side or fallback
-              imageUrl: null,
-              role: journeyRolesMap.get(id) || 'INTERMEDIATE',
-              status: idx === 0 ? 'completed' : idx === 1 ? 'current' : 'upcoming'
-            }))
-          };
-        } catch {}
-      }
-    }
-
-    if (!activeJourneyDetails) {
-      activeJourneyDetails = {
-        active: false,
-        id: null,
-        title: null,
-        targetTerritory: null,
-        currentStep: null,
-        totalSteps: null,
-        progressPercent: 0,
-        steps: null
-      };
-    }
-
-    // Pre-query database layers to build snapshot context
     const [
       relationships,
       affinities,
@@ -121,7 +73,7 @@ export async function GET(request: NextRequest) {
       memories,
       recentExplored,
       memberships,
-      bridges
+      bridges,
     ] = await Promise.all([
       prisma.userTerritoryRelationship.findMany({ where: { userId } }),
       prisma.userTerritoryAffinity.findMany({ where: { userId } }),
@@ -129,30 +81,30 @@ export async function GET(request: NextRequest) {
       prisma.territoryAdoption.findMany({ where: { userId } }),
       prisma.userArtistMemory.findMany({ where: { userId } }),
       prisma.exploredArtist.findMany({
-        where: { userId, exploredAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-        select: { artistId: true }
+        where: {
+          userId,
+          exploredAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+        select: { artistId: true },
       }),
       prisma.territoryMembership.findMany({
-        where: { artistId: { in: nodes.map((n: any) => n.id) } }
+        where: { artistId: { in: nodes.map((n: { id: string }) => n.id) } },
       }),
       prisma.territoryBridge.findMany({
-        where: { artistId: { in: nodes.map((n: any) => n.id) } }
-      })
+        where: { artistId: { in: nodes.map((n: { id: string }) => n.id) } },
+      }),
     ]);
 
-    const recentExploredIds = new Set(recentExplored.map(e => e.artistId));
-    const artistTerritoryMap = new Map(memberships.map(m => [m.artistId, m]));
-    const bridgeArtistIds = new Set(bridges.map(b => b.artistId));
+    const recentExploredIds = new Set<string>(recentExplored.map((e: any) => e.artistId));
+    const artistTerritoryMap = new Map<string, any>(memberships.map((m: any) => [m.artistId, m]));
+    const bridgeArtistIds = new Set<string>(bridges.map((b: any) => b.artistId));
 
-    // Map raw Spotify genres to Territory IDs
     const genreToTerritoryCount = new Map<string, Map<string, number>>();
-    nodes.forEach((node: any) => {
+    nodes.forEach((node: { id: string; genres?: string[] }) => {
       const primaryGenre = node.genres?.[0]?.toLowerCase();
       if (!primaryGenre) return;
-
-      const mem = artistTerritoryMap.get(node.id);
+      const mem = artistTerritoryMap.get(node.id) as { territoryId: string } | undefined;
       if (!mem) return;
-
       if (!genreToTerritoryCount.has(primaryGenre)) {
         genreToTerritoryCount.set(primaryGenre, new Map());
       }
@@ -185,34 +137,23 @@ export async function GET(request: NextRequest) {
       recentExploredIds,
       artistTerritoryMap,
       bridgeArtistIds,
-      activeIntervention,
-      journeyArtistIds,
-      journeyRolesMap,
-      journeyNodeIndexes,
-      activeJourneyTargetTerritory,
+      activeIntervention: null as null,
       genreToTerritoryMap,
     };
 
-    // 1. Build Artist Snapshots
-    const enrichedNodes = nodes.map((node: any) => buildArtistSnapshot(node, ctx));
+    const enrichedNodes = nodes.map((node: unknown) => buildArtistSnapshot(node, ctx));
 
-    // 2. Build Edge Snapshots (adding isJourneyEdge properties and checking bounds)
-    const enrichedEdges = edges.map((edge: any) => {
+    const enrichedEdges = edges.map((edge: {
+      source: string | { id: string };
+      target: string | { id: string };
+      similarity?: number;
+    }) => {
       const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
       const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
-
-      const sourceNode = enrichedNodes.find((n: any) => n.id === sourceId);
-      const targetNode = enrichedNodes.find((n: any) => n.id === targetId);
-      const isBridgeEdge = sourceNode && targetNode && sourceNode.territory !== targetNode.territory;
-
-      let isJourneyEdge = false;
-      if (journeyArtistIds.has(sourceId) && journeyArtistIds.has(targetId)) {
-        const idxA = journeyNodeIndexes.get(sourceId) ?? -1;
-        const idxB = journeyNodeIndexes.get(targetId) ?? -1;
-        if (Math.abs(idxA - idxB) === 1) {
-          isJourneyEdge = true;
-        }
-      }
+      const sourceNode = enrichedNodes.find((n: { id: string }) => n.id === sourceId);
+      const targetNode = enrichedNodes.find((n: { id: string }) => n.id === targetId);
+      const isBridgeEdge =
+        sourceNode && targetNode && sourceNode.territory !== targetNode.territory;
 
       return {
         source: sourceId,
@@ -221,21 +162,27 @@ export async function GET(request: NextRequest) {
         targetId,
         similarity: edge.similarity ?? 0.5,
         isBridgeEdge: !!isBridgeEdge,
-        isJourneyEdge
       };
     });
 
-    // 3. Build Genre Snapshots (GIS)
-    const rawGenresList = Array.from(new Set(nodes.flatMap((n: any) => n.genres || []).map((g: string) => g.toLowerCase()))) as string[];
+    const rawGenresList = Array.from(
+      new Set(
+        nodes
+          .flatMap((n: { genres?: string[] }) => n.genres || [])
+          .map((g: string) => g.toLowerCase()),
+      ),
+    ) as string[];
     const enrichedGenres = rawGenresList.map((genre: string) => {
-      const genreArtists = enrichedNodes.filter((n: any) => n.genres?.map((g: string) => g.toLowerCase()).includes(genre));
+      const genreArtists = enrichedNodes.filter((n: { genres?: string[] }) =>
+        n.genres?.map((g: string) => g.toLowerCase()).includes(genre),
+      );
       return buildGenreSnapshot(genre, genreArtists, ctx);
     });
 
     let userPosition = {
       primaryTerritoryId: 'Territory_v2_001',
       lat: 0,
-      lng: 0
+      lng: 0,
     };
 
     if (dbUser.homeRegion) {
@@ -244,31 +191,204 @@ export async function GET(request: NextRequest) {
         userPosition = {
           primaryTerritoryId: home.territoryId || 'Territory_v2_001',
           lat: home.lat ?? 0,
-          lng: home.lng ?? 0
+          lng: home.lng ?? 0,
         };
-      } catch {}
+      } catch {
+        /* keep defaults */
+      }
     }
 
-    const response = NextResponse.json({
-      status: 'ready',
-      nodes: enrichedNodes,
-      edges: enrichedEdges,
-      genres: enrichedGenres,
-      journey: activeJourneyDetails,
-      userPosition,
-      homeRegion: {
-        lat: userPosition.lat,
-        lng: userPosition.lng,
-        spread: 1.0,
-        territoryId: userPosition.primaryTerritoryId
+    const dominantGenres = enrichedGenres
+      .filter((g: { relationship?: { current?: string }; name: string }) => g.relationship?.current === 'RESIDENT')
+      .map((g: { name: string }) => g.name);
+    const emergingGenres = enrichedGenres
+      .filter(
+        (g: { relationship?: { current?: string } }) =>
+          g.relationship?.current === 'CURIOUS' || g.relationship?.current === 'EXPLORING',
+      )
+      .map((g: { name: string }) => g.name);
+    const untouchedGenres = enrichedGenres
+      .filter((g: { relationship?: { current?: string } }) => g.relationship?.current === 'UNEXPLORED')
+      .map((g: { name: string }) => g.name);
+    const genreDiversity = Math.min(1.0, Math.round((enrichedGenres.length / 25) * 100) / 100);
+    const comfortBias =
+      enrichedGenres.length > 0
+        ? Math.round((dominantGenres.length / enrichedGenres.length) * 100) / 100
+        : 0.5;
+    const expansionLevel = Math.round((1 - comfortBias) * 100) / 100;
+    const expansionMetadata = {
+      expansionLevel,
+      comfortBias,
+      genreDiversity,
+      dominantGenres,
+      emergingGenres,
+      untouchedGenres,
+    };
+
+    // Pure read of DB-backed world state — never regenerates on GET.
+    const worldState = await readWorldState(userId);
+      const clientVersion = parseInt(url.searchParams.get('version') || '-1', 10);
+      if (
+        worldState.snapshotVersion > 0 &&
+        clientVersion === worldState.snapshotVersion
+      ) {
+        return NextResponse.json({
+          status: 'ready',
+          upToDate: true,
+          snapshotVersion: worldState.snapshotVersion,
+        });
       }
-    });
 
-    response.headers.set('Cache-Control', 'private, max-age=60');
-    return response;
+      const candidateNodes = worldState.lastNodes || [];
+      // No frontier yet: return explored-only world with pending_frontier hint
+      // so the client can trigger POST /api/world/regenerate if desired.
+      const cold = await assessUserColdStart(userId);
 
-  } catch (error: any) {
+      if (worldState.snapshotVersion === 0 && candidateNodes.length === 0) {
+        const response = NextResponse.json({
+          status: 'ready',
+          frontierStatus: dbUser.frontierStatus,
+          snapshotVersion: 0,
+          needsMaterialization: true,
+          coldStart: cold.coldStart,
+          coldStartReason: cold.reason,
+          ...(cold.coldStart ? { message: 'still learning your taste' } : {}),
+          nodes: enrichedNodes,
+          edges: enrichedEdges,
+          genres: enrichedGenres,
+          expansionMetadata,
+          userPosition,
+          homeRegion: {
+            lat: userPosition.lat,
+            lng: userPosition.lng,
+            spread: 1.0,
+            territoryId: userPosition.primaryTerritoryId,
+          },
+        });
+        response.headers.set('Cache-Control', 'private, max-age=30');
+        return response;
+      }
+
+      const combinedNodes = [...enrichedNodes, ...candidateNodes];
+      const combinedNodeIds = new Set(combinedNodes.map((n: { id: string }) => n.id));
+      const filteredEdges = enrichedEdges.filter(
+        (edge: { sourceId: string; targetId: string }) =>
+          combinedNodeIds.has(edge.sourceId) && combinedNodeIds.has(edge.targetId),
+      );
+
+      const tierParam = url.searchParams.get('tier');
+      const depthParam = url.searchParams.get('depth') as DepthBandId | null;
+      const sliderValue = parseFloat(url.searchParams.get('slider') || '0.5');
+      const recommended =
+        worldState.readinessState?.recommendedTier ?? 'expansion';
+      const readinessTier =
+        tierParam && ['comfort', 'expansion', 'leap'].includes(tierParam)
+          ? (tierParam as 'comfort' | 'expansion' | 'leap')
+          : recommended;
+
+      // Prefer readiness tier projection (Change D/E); fall back to legacy depth/slider
+      const projectionMode: number | DepthBandId | 'comfort' | 'expansion' | 'leap' =
+        tierParam || worldState.readinessState
+          ? readinessTier
+          : depthParam &&
+              ['shallow', 'deeper', 'deep', 'deepest', 'all'].includes(depthParam)
+            ? depthParam
+            : sliderValue;
+
+      const surface = worldState.recommendationSurface;
+      const bucketIds =
+        surface && typeof projectionMode === 'string' &&
+        ['comfort', 'expansion', 'leap'].includes(projectionMode)
+          ? new Set(
+              (surface[projectionMode as 'comfort' | 'expansion' | 'leap'] ?? []).map(
+                (p: { candidateId: string }) => p.candidateId,
+              ),
+            )
+          : undefined;
+
+      let projection = projectWorld(combinedNodes, filteredEdges, projectionMode as any);
+      // Re-apply with explicit bucket ids when surface present
+      if (bucketIds && typeof projectionMode === 'string' && ['comfort', 'expansion', 'leap'].includes(projectionMode)) {
+        const { applyTierEmphasis } = await import('@/lib/frontier/world-projection');
+        projection = {
+          ...projection,
+          nodes: applyTierEmphasis(
+            projection.nodes,
+            projectionMode as 'comfort' | 'expansion' | 'leap',
+            bucketIds,
+          ),
+        };
+      }
+
+      // Precomputed unexplored-by-territory from materialised frontier (before depth filter)
+      const unexploredByTerritory = buildUnexploredByTerritory(
+        candidateNodes.map((n) => ({
+          ...n,
+          state: n.state || ('frontier' as const),
+        })),
+      );
+
+      const response = NextResponse.json({
+        status: 'ready',
+        snapshotVersion: worldState.snapshotVersion,
+        candidateUniverseVersion: worldState.candidateUniverseVersion,
+        ocseVersion: worldState.ocseEvaluationVersion,
+        generatedAt: worldState.lastGeneratedAt,
+        worldDeltaId: `delta_${worldState.snapshotVersion}`,
+        upToDate: false,
+        worldDelta: worldState.delta || { added: [], removed: [], changed: [] },
+        coldStart: cold.coldStart,
+        coldStartReason: cold.reason,
+        ...(cold.coldStart ? { message: 'still learning your taste' } : {}),
+        nodes: projection.nodes,
+        edges: projection.edges,
+        genres: enrichedGenres,
+        expansionMetadata,
+        projectionStats: projection.stats,
+        unexploredByTerritory,
+        readinessState: worldState.readinessState ?? null,
+        recommendedTier: recommended,
+        activeTier: readinessTier,
+        leapBucketFallback:
+          worldState.leapBucketFallback ??
+          surface?.leapBucketFallback ??
+          false,
+        shoreBucketFallback:
+          worldState.shoreBucketFallback ??
+          surface?.shoreBucketFallback ??
+          false,
+        distanceVarianceCollapsed:
+          worldState.distanceVarianceCollapsed ??
+          surface?.distanceVarianceCollapsed ??
+          false,
+        recommendationSurface: surface
+          ? {
+              comfort: surface.comfort.map((p) => p.candidateId),
+              expansion: surface.expansion.map((p) => p.candidateId),
+              leap: surface.leap.map((p) => p.candidateId),
+              readiness: surface.readiness,
+              generatedAt: surface.generatedAt,
+              leapBucketFallback: surface.leapBucketFallback ?? false,
+              leapSeekInLeapCount: surface.leapSeekInLeapCount ?? 0,
+              shoreBucketFallback: surface.shoreBucketFallback ?? false,
+              distanceVarianceCollapsed:
+                surface.distanceVarianceCollapsed ?? false,
+              shoreSeekInShoreCount: surface.shoreSeekInShoreCount ?? 0,
+            }
+          : null,
+        depthBand: typeof projectionMode === 'string' ? projectionMode : undefined,
+        userPosition,
+        homeRegion: {
+          lat: userPosition.lat,
+          lng: userPosition.lng,
+          spread: 1.0,
+          territoryId: userPosition.primaryTerritoryId,
+        },
+      });
+      return response;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('[/api/globe] Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1,38 +1,40 @@
 export const dynamic = 'force-dynamic';
+// TODO: Migrate internal api/user/frontier endpoint and filename to expansion terminology in a future cleanup.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { computeAndStoreFrontier } from '@/lib/frontier/computeAndStoreFrontier';
+import { materializeWorld } from '@/lib/frontier/pipeline-runner';
 import { detectGeographicGaps } from '@/lib/metrics/geographicCoverage';
 import { computeAdventurousness } from '@/lib/metrics/adventurousness';
 import type { OrcaNode } from '@/lib/graph/types';
+import { assessUserColdStart } from '@/lib/identity/cold-start';
+import { resolveDemoUser } from '@/lib/auth/demo-user';
 
+/**
+ * GET /api/user/frontier — pure read of cached frontier.
+ * Never materializes (Ticket 4). Explicit write: POST here or POST /api/world/regenerate.
+ */
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const isDemo = url.searchParams.get('demo') === 'true';
 
     let userId: string;
-    let accessToken = '';
 
     if (isDemo) {
-      const demoUser = await prisma.user.findFirst({
-        where: { syncStatus: 'COMPLETE' },
-        select: { spotifyId: true },
-      });
-      if (!demoUser) {
+      const demoId = await resolveDemoUser();
+      if (!demoId) {
         return new NextResponse('No demo data available', { status: 404 });
       }
-      userId = demoUser.spotifyId!;
+      userId = demoId;
     } else {
       const session = await getServerSession(authOptions);
       if (!session || !session.user || !session.user.spotifyId) {
         return new NextResponse('Unauthorized', { status: 401 });
       }
       userId = session.user.spotifyId;
-      accessToken = session.spotifyAccessToken || '';
     }
 
     const user = await prisma.user.findUnique({
@@ -52,37 +54,23 @@ export async function GET(request: NextRequest) {
     }
 
     const isComputing = user.frontierStatus === 'COMPUTING';
-    const computedAt = user.frontierComputedAt ? new Date(user.frontierComputedAt) : null;
-    const now = new Date();
-    // 45 seconds threshold to assume background task was killed/stuck due to server restart/re-compile
-    const isStuck = isComputing && computedAt && (now.getTime() - computedAt.getTime() > 45 * 1000);
 
-    // 1. Actively computing and no cached data yet — early-exit without parsing anything
-    if (!isDemo && isComputing && !isStuck && !user.frontierData) {
+    // Actively computing and no cache yet — pure status, no rebuild
+    if (!isDemo && isComputing && !user.frontierData) {
       return NextResponse.json({ status: 'computing' });
     }
 
-    // 2. If never computed, or stuck without data, trigger and poll
+    // Never computed — pure pending; client must POST regenerate / POST frontier
     if (!isDemo && (user.frontierStatus === 'PENDING' || !user.frontierData)) {
-      let exploredNodes: OrcaNode[] = [];
-      if (user.globeData) {
-        try {
-          exploredNodes = JSON.parse(user.globeData).nodes || [];
-        } catch (e) {
-          console.error('[API frontier] JSON parsing error for globeData:', e);
-        }
-      }
-      if (exploredNodes.length > 0) {
-        computeAndStoreFrontier(userId, exploredNodes, accessToken).catch(err => {
-          console.error('[API frontier] Background frontier calculation error:', err);
-        });
-      }
-      return NextResponse.json({ status: 'computing' });
+      return NextResponse.json({
+        status: 'pending',
+        frontierStatus: user.frontierStatus ?? 'PENDING',
+        needsMaterialization: true,
+      });
     }
 
-    // Parse cached frontier and boundary data since we are going to use them
     let frontierNodes: OrcaNode[] = [];
-    let perimeterData: any[] = [];
+    let perimeterData: unknown[] = [];
     let exploredNodes: OrcaNode[] = [];
 
     try {
@@ -95,62 +83,25 @@ export async function GET(request: NextRequest) {
       console.error('[API frontier] JSON parsing error:', e);
     }
 
-    // If it's a demo, we never want to trigger computeAndStoreFrontier or return "computing".
-    // We just return whatever we have, or fallback to empty arrays.
-    if (isDemo) {
-      const geographicGaps = detectGeographicGaps(exploredNodes, frontierNodes);
-      let adventurousness = null;
-      if (user.adventurousnessHistory) {
-        try {
-          const history = JSON.parse(user.adventurousnessHistory);
-          adventurousness = history[history.length - 1] || null;
-        } catch {}
-      }
-      if (!adventurousness && exploredNodes.length > 0) {
-        adventurousness = computeAdventurousness(exploredNodes, frontierNodes, null);
-      }
-      return NextResponse.json(
-        {
-          status: 'ready',
-          frontierNodes,
-          perimeterData,
-          geographicGaps,
-          adventurousness,
-          frontierComputedAt: user.frontierComputedAt,
-        },
-        {
-          headers: {
-            'Cache-Control': process.env.NODE_ENV === 'development' ? 'no-store' : 'private, max-age=1800',
-          },
-        }
-      );
-    }
-
-    // If stuck but we DO have cached nodes, trigger a self-healing recomputation in the background, but continue to serve the cache immediately!
-    if (isStuck) {
-      console.log(`[API frontier] Self-healing active: stuck in COMPUTING (computedAt: ${computedAt}). Re-triggering background sync...`);
-      computeAndStoreFrontier(userId, exploredNodes, accessToken).catch(err => {
-        console.error('[API frontier] Self-healing recomputation failed:', err);
-      });
-    }
-
-    // Compute dynamic geographic gaps on the fly to match freshest explore actions
     const geographicGaps = detectGeographicGaps(exploredNodes, frontierNodes);
 
-    // Get adventurousness snapshot
     let adventurousness = null;
     if (user.adventurousnessHistory) {
       try {
         const history = JSON.parse(user.adventurousnessHistory);
         adventurousness = history[history.length - 1] || null;
-      } catch {}
+      } catch {
+        /* ignore corrupt history */
+      }
     }
-    
-    // Fallback if metric is not yet stored
+
     if (!adventurousness && exploredNodes.length > 0) {
       adventurousness = computeAdventurousness(exploredNodes, frontierNodes, null);
     }
 
+    const cold = await assessUserColdStart(userId);
+
+    // Stuck COMPUTING but cache exists: serve cache; never self-heal on GET
     return NextResponse.json(
       {
         status: 'ready',
@@ -159,12 +110,20 @@ export async function GET(request: NextRequest) {
         geographicGaps,
         adventurousness,
         frontierComputedAt: user.frontierComputedAt,
+        frontierStatus: user.frontierStatus,
+        coldStart: cold.coldStart,
+        coldStartReason: cold.reason,
+        ...(cold.coldStart
+          ? { message: 'still learning your taste' }
+          : {}),
+        ...(isComputing ? { staleComputing: true } : {}),
       },
       {
         headers: {
-          'Cache-Control': process.env.NODE_ENV === 'development' ? 'no-store' : 'private, max-age=1800',
+          'Cache-Control':
+            process.env.NODE_ENV === 'development' ? 'no-store' : 'private, max-age=1800',
         },
-      }
+      },
     );
   } catch (error) {
     console.error('[API user/frontier] GET Error:', error);
@@ -173,9 +132,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/user/frontier — Force recompute frontier data.
- * Resets frontierStatus to PENDING and clears stale data so the next GET
- * triggers a fresh computation with updated pipeline logic.
+ * POST /api/user/frontier — explicit materialize trigger (Ticket 4 write path).
+ * Prefer POST /api/world/regenerate for full materialization from clients.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -192,16 +150,16 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.spotifyId;
+    const accessToken = session.spotifyAccessToken || '';
 
-    await prisma.user.update({
-      where: { spotifyId: userId },
-      data: {
-        frontierStatus: 'PENDING',
-        frontierData: null,
-      },
+    // Fire-and-forget sole writer — client polls GET for status
+    materializeWorld(userId, {
+      accessToken,
+      fullMaterialization: true,
+    }).catch((err) => {
+      console.error('[API frontier] Explicit materialize failed:', err);
     });
 
-    console.log(`[API frontier] Force recompute triggered for user ${userId}`);
     return NextResponse.json({ status: 'recompute_triggered' });
   } catch (error) {
     console.error('[API user/frontier] POST Error:', error);

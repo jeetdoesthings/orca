@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { resolveDemoUser } from '@/lib/auth/demo-user';
 
 function getTerritoryDisplayName(metadata: string | null, fallbackId: string): string {
   if (!metadata) return fallbackId;
@@ -19,14 +20,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     let userId: string;
     if (isDemo) {
-      const demoUser = await prisma.user.findFirst({
-        where: { syncStatus: 'COMPLETE' },
-        select: { spotifyId: true },
-      });
-      if (!demoUser) {
+      const demoId = await resolveDemoUser();
+      if (!demoId) {
         return NextResponse.json({ error: 'No demo data available' }, { status: 404 });
       }
-      userId = demoUser.spotifyId!;
+      userId = demoId;
     } else {
       const session = await getServerSession(authOptions);
       if (!session || !session.user || !(session as any).user.spotifyId) {
@@ -60,50 +58,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     let territoryId = 'Territory_v2_001';
     let territoryName = 'Unknown Territory';
     if (artist.territoryMemberships.length > 0) {
-      const primary = artist.territoryMemberships.find(tm => tm.role === 'CORE') || artist.territoryMemberships[0];
+      const primary = artist.territoryMemberships.find((tm: any) => tm.role === 'CORE') || artist.territoryMemberships[0];
       territoryId = primary.territoryId;
       territoryName = getTerritoryDisplayName(primary.territory.metadata, territoryId);
     }
 
     // Resolve bridge functions
-    const connects = artist.territoryBridges.map(b => {
+    const connects = artist.territoryBridges.map((b: any) => {
       const fromName = getTerritoryDisplayName(b.territoryA.metadata, b.territoryAId);
       const toName = getTerritoryDisplayName(b.territoryB.metadata, b.territoryBId);
       return { from: fromName, to: toName };
     });
 
     const bridgeFunction = connects.length > 0 ? { connects } : null;
-
-    // Resolve active journey context
-    const activeIntervention = await prisma.longitudinalIntervention.findFirst({
-      where: { userId, state: 'ACTIVE' },
-      include: { territory: true },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    let currentJourneyRole: "ANCHOR" | "BRIDGE" | "INTERMEDIATE" | "DESTINATION" | null = null;
-    let currentJourneyStep: number | null = null;
-    let targetTerritoryName: string | null = null;
-
-    if (activeIntervention) {
-      targetTerritoryName = getTerritoryDisplayName(activeIntervention.territory.metadata, activeIntervention.targetTerritoryId);
-      const template = await prisma.globalPathwayTemplate.findFirst({
-        where: { targetTerritory: activeIntervention.targetTerritoryId }
-      });
-      if (template) {
-        try {
-          const artistIds: string[] = JSON.parse(template.pathwayNodes);
-          const index = artistIds.indexOf(id);
-          if (index !== -1) {
-            currentJourneyStep = index + 1;
-            if (index === 0) currentJourneyRole = 'ANCHOR';
-            else if (index === artistIds.length - 1) currentJourneyRole = 'DESTINATION';
-            else if (index === 1 && artistIds.length > 3) currentJourneyRole = 'BRIDGE';
-            else currentJourneyRole = 'INTERMEDIATE';
-          }
-        } catch {}
-      }
-    }
 
     // Resolve user relationship (from memories)
     const memory = await prisma.userArtistMemory.findUnique({
@@ -139,17 +106,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         memoryStrength: strength,
         memoryTrajectory,
         lastOrganicListen: lastListen ? lastListen.timestamp.toISOString() : null,
-        currentJourneyRole,
-        currentJourneyStep,
         relationshipState: memory.memoryState || relationshipState
       };
     }
 
     // Dynamic explanation
     let explanation = `A key artist within the ${territoryName} territory.`;
-    if (currentJourneyRole && targetTerritoryName) {
-      explanation = `${artist.displayName} serves as a ${currentJourneyRole.toLowerCase()} to guide you into ${targetTerritoryName}.`;
-    } else if (connects.length > 0) {
+    if (connects.length > 0) {
       explanation = `${artist.displayName} bridges your listening from ${connects[0].from} to ${connects[0].to}.`;
     }
 

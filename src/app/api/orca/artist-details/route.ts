@@ -142,6 +142,13 @@ export async function GET(request: NextRequest) {
   if (!isDemo && (!session || !session.user)) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
+  if (isDemo) {
+    const { resolveDemoUser } = await import('@/lib/auth/demo-user');
+    const demoId = await resolveDemoUser();
+    if (!demoId) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+  }
 
   const artistName = request.nextUrl.searchParams.get('artist');
   const artistNodeId = request.nextUrl.searchParams.get('id');
@@ -195,7 +202,7 @@ export async function GET(request: NextRequest) {
 
       // Query Spotify using the resolved Spotify Artist ID
       if (spotifyArtistId) {
-        artistSpotifyUrl = `https://open.spotify.com/artist/${spotifyArtistId}`;
+        artistSpotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(cleanName)}`;
 
         // Concurrently fetch top tracks (max 8) and albums/singles (max 15 to filter duplicates)
         const [tracksRes, albumsRes] = await Promise.all([
@@ -216,7 +223,7 @@ export async function GET(request: NextRequest) {
           tracks = spotifyTracks.slice(0, 8).map((t: any) => ({
             name: t.name,
             playcount: t.popularity * 8500, // procedurally upscale popularity
-            spotifyUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+            spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(t.name + ' ' + cleanName)}`,
           }));
         }
 
@@ -247,7 +254,7 @@ export async function GET(request: NextRequest) {
               name: a.name,
               playcount: a.release_date ? parseInt(a.release_date.split('-')[0], 10) : 0, // Year
               imageUrl,
-              spotifyUrl: a.external_urls?.spotify || `https://open.spotify.com/album/${a.id}`,
+              spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(a.name + ' ' + cleanName)}`,
             };
           });
         }
