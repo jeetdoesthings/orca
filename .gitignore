@@ -39,3 +39,29 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local runtime state
+.gemini/
+src/lib/frontier/world-state-*.json
+
+# Phase 1.5 regression fixtures (per-user baseline snapshots from scripts/)
+scratch-fixtures/
+
+# throwaway one-off audit / simulation scripts
+/scratch/
+
+# agent tooling directories + lockfiles
+.agents/
+.cache/
+.factory/
+.kilocode/
+.qwen/
+.zcode/
+skills-lock.json
+
+# stray local databases + old spec docs
+/dev.db
+/prisma/prisma/
+/ORCA.png
+/backend-contract.md
+

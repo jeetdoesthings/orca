@@ -3,21 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "bash scripts/dev-all.sh",
+    "dev:web": "next dev",
+    "dev:sidecar": "bash scripts/run-embedding-sidecar.sh",
     "build": "prisma generate && next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "bash scripts/start-all.sh",
+    "start:web": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "DATABASE_URL=\"file:./prisma/dev.db\" vitest run",
+    "test:watch": "DATABASE_URL=\"file:./prisma/dev.db\" vitest",
+    "db:push": "DATABASE_URL=\"${DATABASE_URL:-file:./prisma/dev.db}\" prisma db push",
+    "seed:artists": "npx tsx scripts/seed-artist-catalog.ts",
+    "dedupe:artists": "npx tsx scripts/dedupe-artists.ts",
+    "agency:recalibrate": "npx tsx scripts/recalibrate-agency.ts",
+    "embeddings:backfill": "npx tsx scripts/backfill-embeddings.ts",
+    "embeddings:coverage": "npx tsx scripts/embedding-coverage-report.ts",
+    "ci": "bash scripts/ci-check.sh"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
+    "@omniroute/opencode-provider": "^0.1.0",
     "@prisma/client": "^5.19.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@react-three/postprocessing": "^3.0.4",
     "@types/three": "^0.184.1",
     "@vercel/analytics": "^2.0.1",
+    "claude": "^0.1.1",
     "d3-force-3d": "^3.0.6",
     "html2canvas": "^1.4.1",
+    "motion": "^11.18.2",
     "next": "16.2.6",
     "next-auth": "^4.24.14",
     "postprocessing": "^6.39.1",
@@ -36,6 +52,7 @@
     "eslint-config-next": "16.2.6",
     "prisma": "^5.19.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

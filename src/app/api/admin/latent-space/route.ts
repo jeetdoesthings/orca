@@ -35,7 +35,7 @@ export async function GET(req: Request) {
       })
     ]);
 
-    const totalConfidence = embeddings.reduce((sum, e) => sum + e.confidence, 0);
+    const totalConfidence = embeddings.reduce((sum: number, e: any) => sum + e.confidence, 0);
     const avgConfidence = embeddingCount > 0 ? totalConfidence / embeddingCount : 1.0;
 
     // Calculate confidence band distribution
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
     let medium = 0; // 0.4 to 0.7
     let low = 0;    // < 0.4
 
-    embeddings.forEach(e => {
+    embeddings.forEach((e: any) => {
       if (e.confidence >= 0.7) high++;
       else if (e.confidence >= 0.4) medium++;
       else low++;

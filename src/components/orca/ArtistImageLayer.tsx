@@ -665,7 +665,7 @@ export function ArtistImageLayer({ onImageResolved }: { onImageResolved?: (artis
       }
 
       const node = nodes.find(n => n.id === nodeId);
-      if (!node) {
+      if (!node || node.visible === false || node.reachable === false) {
         mesh.visible = false;
         continue;
       }

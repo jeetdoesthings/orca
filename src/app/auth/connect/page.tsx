@@ -156,7 +156,7 @@ export default function ConnectPage() {
 
         {/* Explore Demo Globe button */}
         <button
-          onClick={() => router.push('/globe?demo=true')}
+          onClick={() => router.push('/globe/select')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { AGENCY_V0_WEIGHTS } from '@/lib/config/agency';
 
 const prisma = new PrismaClient();
 
@@ -8,6 +9,7 @@ export interface TEMConfig {
   adoptionThresholdMinutes: number; // e.g., 60
   adoptionThresholdSessions: number; // e.g., 3
   durabilityWindows: number; // e.g., 9
+  /** Part 5: defaults to Agency v0 prior; override only with reviewed weights. */
   agencyWeights: Record<string, number>;
 }
 
@@ -17,23 +19,8 @@ export const DEFAULT_TEM_CONFIG: TEMConfig = {
   adoptionThresholdMinutes: 60,
   adoptionThresholdSessions: 3,
   durabilityWindows: 9, // 10 days each if 90 days total
-  agencyWeights: {
-    SEARCH: 1.0,
-    ARTIST_PAGE: 0.9,
-    PLAYLIST_CREATED: 0.85,
-    LIBRARY_SAVE: 0.8,
-    VOLUNTARY_REVISIT: 0.6,
-    RECOMMENDATION: 0.3,
-    AUTOPLAY: 0.1,
-    BACKGROUND: 0.05,
-    // Fallbacks for older event types if initiationType is missing
-    PLAY: 0.5,
-    COMPLETE: 0.5,
-    SAVE: 0.8,
-    PLAYLIST_ADD: 0.85,
-    REPLAY: 0.6,
-    SKIP: 0.0,
-  }
+  // Part 5: v0 prior — recalibration drafts never auto-replace this
+  agencyWeights: { ...AGENCY_V0_WEIGHTS },
 };
 
 export interface TEMResult {
@@ -50,34 +37,152 @@ export interface TEMResult {
 }
 
 /**
+ * Taste Expansion Metric (TEM) — retrospective outcome score.
+ *
+ * NOT used for live candidate ranking (that is Expansion Intelligence distance
+ * + OCSE). TEM measures whether genuine expansion stuck after the fact.
+ * Spec "TES" ≈ territory score F×D×A×M; composite TEM is exp-normalized sum.
+ *
+ * Multiplicative on purpose: foreign AND durable AND agentic AND meaningful.
+ * Autoplay-only paths cannot mint high TEM even if F is high.
+ */
+
+export interface TemListenEvent {
+  artistId: string;
+  territoryId?: string | null;
+  timestamp: Date;
+  eventType?: string | null;
+  initiationType?: string | null;
+  durationMs?: number | null;
+  sessionId?: string | null;
+}
+
+/**
  * Normalizes a sum exponentially into a [0, 1] range.
  */
-function exponentialNormalize(value: number, scale: number = 0.5): number {
+export function exponentialNormalize(value: number, scale: number = 0.5): number {
   return 1.0 - Math.exp(-value * scale);
 }
 
-export async function calculateTEM(
-  userId: string,
+/** Territory-level foreignness from baseline exposure (0 = familiar, 1 = new). */
+export function computeForeignness(
+  baselineEvents: TemListenEvent[],
+  evalStartMs: number,
+): number {
+  if (baselineEvents.length === 0) return 1.0;
+  const exposureCount = baselineEvents.length;
+  const exposurePenalty = Math.min(1.0, exposureCount / 50.0);
+  const lastBaselineEvent = baselineEvents[baselineEvents.length - 1];
+  const daysSinceLastExposure =
+    (evalStartMs - lastBaselineEvent.timestamp.getTime()) / (24 * 60 * 60 * 1000);
+  const recencyPenalty = Math.max(0.0, 1.0 - daysSinceLastExposure / 180);
+  return Math.max(0.0, 1.0 - (exposurePenalty * 0.7 + recencyPenalty * 0.3));
+}
+
+/** Later windows weigh more; AUTOPLAY / SKIP excluded. */
+export function computeDurability(
+  evalEvents: TemListenEvent[],
+  evalStartMs: number,
+  config: TEMConfig = DEFAULT_TEM_CONFIG,
+): number {
+  const windowDurationMs =
+    (config.evaluationWindowDays * 24 * 60 * 60 * 1000) / config.durabilityWindows;
+  const windowCounts = new Array(config.durabilityWindows).fill(0);
+
+  for (const e of evalEvents) {
+    const msIntoEval = e.timestamp.getTime() - evalStartMs;
+    const windowIndex = Math.min(
+      config.durabilityWindows - 1,
+      Math.floor(msIntoEval / windowDurationMs),
+    );
+    if (e.initiationType !== 'AUTOPLAY' && e.eventType !== 'SKIP') {
+      windowCounts[windowIndex]++;
+    }
+  }
+
+  let durabilityScore = 0;
+  let maxPossibleDurability = 0;
+  for (let i = 0; i < config.durabilityWindows; i++) {
+    const weight = Math.pow(1.2, i);
+    maxPossibleDurability += weight;
+    if (windowCounts[i] > 0) {
+      const windowIntensity = Math.min(1.0, Math.log10(1 + windowCounts[i]) / Math.log10(10));
+      durabilityScore += weight * windowIntensity;
+    }
+  }
+  return maxPossibleDurability > 0 ? durabilityScore / maxPossibleDurability : 0;
+}
+
+/** Active choice weights; SKIP excluded; AUTOPLAY low. */
+export function computeAgency(
+  evalEvents: TemListenEvent[],
+  config: TEMConfig = DEFAULT_TEM_CONFIG,
+): number {
+  let agencyScoreTotal = 0;
+  let validEvents = 0;
+  for (const e of evalEvents) {
+    if (e.eventType === 'SKIP') continue;
+    const weight =
+      config.agencyWeights[e.initiationType || ''] ??
+      config.agencyWeights[e.eventType || ''] ??
+      0.5;
+    agencyScoreTotal += weight;
+    validEvents++;
+  }
+  return validEvents > 0 ? agencyScoreTotal / validEvents : 0;
+}
+
+export function computeMeaningfulness(evalEvents: TemListenEvent[]): number {
+  let meaningfulnessScore = 0;
+  const exploredArtists = new Set<string>();
+
+  for (const e of evalEvents) {
+    exploredArtists.add(e.artistId);
+    if (e.eventType === 'SAVE' || e.initiationType === 'LIBRARY_SAVE') {
+      meaningfulnessScore += 0.2;
+    }
+    if (e.eventType === 'PLAYLIST_ADD' || e.initiationType === 'PLAYLIST_CREATED') {
+      meaningfulnessScore += 0.3;
+    }
+    if (e.initiationType === 'ARTIST_PAGE') {
+      meaningfulnessScore += 0.15;
+    }
+  }
+
+  if (exploredArtists.size >= 3) meaningfulnessScore += 0.3;
+  else if (exploredArtists.size === 2) meaningfulnessScore += 0.15;
+
+  if (evalEvents.length > 1) {
+    const firstEvalMs = evalEvents[0].timestamp.getTime();
+    const lastEvalMs = evalEvents[evalEvents.length - 1].timestamp.getTime();
+    const spanWeeks = (lastEvalMs - firstEvalMs) / (7 * 24 * 60 * 60 * 1000);
+    if (spanWeeks > 3) meaningfulnessScore += 0.2;
+  }
+
+  return Math.min(1.0, meaningfulnessScore);
+}
+
+/** Spec TES-style composite (plus meaningfulness). Multiplicative, never additive. */
+export function territoryExpansionScore(
+  foreignness: number,
+  durability: number,
+  agency: number,
+  meaningfulness: number,
+): number {
+  return foreignness * durability * agency * meaningfulness;
+}
+
+/**
+ * Pure TEM aggregation over in-memory events (no DB).
+ * Used by calculateTEM and unit tests.
+ */
+export function calculateTEMFromEvents(
+  events: TemListenEvent[],
   evaluationEndDate: Date,
-  config: TEMConfig = DEFAULT_TEM_CONFIG
-): Promise<TEMResult> {
+  config: TEMConfig = DEFAULT_TEM_CONFIG,
+): TEMResult {
   const evalEnd = evaluationEndDate.getTime();
   const evalStart = evalEnd - config.evaluationWindowDays * 24 * 60 * 60 * 1000;
-  const baselineStart = evalStart - config.baselineWindowDays * 24 * 60 * 60 * 1000;
-
-  // 1. Fetch all listening events in baseline and evaluation windows
-  const events = await prisma.userListeningEvent.findMany({
-    where: {
-      userId,
-      timestamp: {
-        gte: new Date(baselineStart),
-        lte: new Date(evalEnd),
-      },
-    },
-    orderBy: {
-      timestamp: 'asc',
-    },
-  });
 
   if (events.length === 0) {
     return {
@@ -94,9 +199,7 @@ export async function calculateTEM(
     };
   }
 
-  // Group events by territory
-  // Note: events without a territoryId are ignored, as TEM evaluates expansion into territories.
-  const territoryEvents = new Map<string, any[]>();
+  const territoryEvents = new Map<string, TemListenEvent[]>();
   for (const event of events) {
     if (!event.territoryId) continue;
     if (!territoryEvents.has(event.territoryId)) {
@@ -105,33 +208,30 @@ export async function calculateTEM(
     territoryEvents.get(event.territoryId)!.push(event);
   }
 
-  const contributingTerritories = [];
+  const contributingTerritories: TEMResult['contributingTerritories'] = [];
   let sumForeignness = 0;
   let sumDurability = 0;
   let sumAgency = 0;
   let sumMeaningfulness = 0;
   let adoptedCount = 0;
-
   let totalScoreSum = 0;
 
   for (const [territoryId, tEvents] of territoryEvents.entries()) {
-    const baselineEvents = tEvents.filter(e => e.timestamp.getTime() < evalStart);
-    const evalEvents = tEvents.filter(e => e.timestamp.getTime() >= evalStart);
+    const baselineEvents = tEvents.filter((e) => e.timestamp.getTime() < evalStart);
+    const evalEvents = tEvents.filter((e) => e.timestamp.getTime() >= evalStart);
 
-    // --- ADOPTION THRESHOLD ---
     let evalDurationMinutes = 0;
     const sessionIds = new Set<string>();
     for (const e of evalEvents) {
       if (e.durationMs) {
         evalDurationMinutes += e.durationMs / 60000;
-      } else {
-        // Fallback: estimate 3 minutes per PLAY/COMPLETE
-        if (e.eventType === 'COMPLETE') evalDurationMinutes += 3;
-        else if (e.eventType === 'PLAY') evalDurationMinutes += 1.5;
+      } else if (e.eventType === 'COMPLETE') {
+        evalDurationMinutes += 3;
+      } else if (e.eventType === 'PLAY') {
+        evalDurationMinutes += 1.5;
       }
-      
-      // If no explicit sessionId, group by hour for session estimation
-      const sessionId = e.sessionId || `sim-sess-${Math.floor(e.timestamp.getTime() / (60 * 60 * 1000))}`;
+      const sessionId =
+        e.sessionId || `sim-sess-${Math.floor(e.timestamp.getTime() / (60 * 60 * 1000))}`;
       sessionIds.add(sessionId);
     }
 
@@ -139,140 +239,34 @@ export async function calculateTEM(
       evalDurationMinutes < config.adoptionThresholdMinutes ||
       sessionIds.size < config.adoptionThresholdSessions
     ) {
-      // Did not adopt
       continue;
     }
 
-    // --- STEP 2: FOREIGNNESS ---
-    let foreignness = 1.0;
-    if (baselineEvents.length > 0) {
-      // Calculate based on exposure count in baseline
-      const exposureCount = baselineEvents.length;
-      // High baseline exposure reduces foreignness
-      const exposurePenalty = Math.min(1.0, exposureCount / 50.0);
-      
-      // Calculate based on days since last exposure before evalStart
-      const lastBaselineEvent = baselineEvents[baselineEvents.length - 1];
-      const daysSinceLastExposure = (evalStart - lastBaselineEvent.timestamp.getTime()) / (24 * 60 * 60 * 1000);
-      // If it's been a long time, it becomes somewhat foreign again, but capped
-      const recencyPenalty = Math.max(0.0, 1.0 - (daysSinceLastExposure / 180));
-      
-      foreignness = Math.max(0.0, 1.0 - (exposurePenalty * 0.7 + recencyPenalty * 0.3));
-    }
+    const foreignness = computeForeignness(baselineEvents, evalStart);
+    const durability = computeDurability(evalEvents, evalStart, config);
+    const agency = computeAgency(evalEvents, config);
+    const meaningfulness = computeMeaningfulness(evalEvents);
+    const score = territoryExpansionScore(foreignness, durability, agency, meaningfulness);
 
-    // --- STEP 3: DURABILITY ---
-    // Divide evaluation window into N segments
-    const windowDurationMs = (config.evaluationWindowDays * 24 * 60 * 60 * 1000) / config.durabilityWindows;
-    const windowCounts = new Array(config.durabilityWindows).fill(0);
-    
-    for (const e of evalEvents) {
-      const msIntoEval = e.timestamp.getTime() - evalStart;
-      const windowIndex = Math.min(
-        config.durabilityWindows - 1,
-        Math.floor(msIntoEval / windowDurationMs)
-      );
-      // We only care if they voluntarily listened. We will use a rough check for now
-      // Skip events with AUTOPLAY type don't count towards durability.
-      if (e.initiationType !== 'AUTOPLAY' && e.eventType !== 'SKIP') {
-        windowCounts[windowIndex]++;
-      }
-    }
-
-    // Apply larger weights to later windows
-    let durabilityScore = 0;
-    let maxPossibleDurability = 0;
-    for (let i = 0; i < config.durabilityWindows; i++) {
-      // Exponentially increasing weights: later weeks matter more
-      const weight = Math.pow(1.2, i); 
-      maxPossibleDurability += weight;
-      
-      // If they had at least some voluntary interaction in this window
-      if (windowCounts[i] > 0) {
-        // Logarithmic scaling for count to prevent one-day binge dominating the window
-        const windowIntensity = Math.min(1.0, Math.log10(1 + windowCounts[i]) / Math.log10(10));
-        durabilityScore += weight * windowIntensity;
-      }
-    }
-    const durability = durabilityScore / maxPossibleDurability;
-
-    // --- STEP 4: AGENCY ---
-    let agencyScoreTotal = 0;
-    let validEvents = 0;
-    for (const e of evalEvents) {
-      if (e.eventType === 'SKIP') continue; // Don't count skips towards agency
-      const weight = config.agencyWeights[e.initiationType || ''] ?? config.agencyWeights[e.eventType] ?? 0.5;
-      agencyScoreTotal += weight;
-      validEvents++;
-    }
-    const agency = validEvents > 0 ? agencyScoreTotal / validEvents : 0;
-
-    // --- STEP 5: MEANINGFULNESS ---
-    // Look for strong signals: SAVE, PLAYLIST_ADD, multiple distinct artists
-    let meaningfulnessScore = 0;
-    const exploredArtists = new Set<string>();
-    
-    for (const e of evalEvents) {
-      exploredArtists.add(e.artistId);
-      if (e.eventType === 'SAVE' || e.initiationType === 'LIBRARY_SAVE') {
-        meaningfulnessScore += 0.2;
-      }
-      if (e.eventType === 'PLAYLIST_ADD' || e.initiationType === 'PLAYLIST_CREATED') {
-        meaningfulnessScore += 0.3;
-      }
-      if (e.initiationType === 'ARTIST_PAGE') {
-        meaningfulnessScore += 0.15; // Deep dive proxy
-      }
-    }
-    
-    // Multiple artist exploration is highly meaningful
-    if (exploredArtists.size >= 3) {
-      meaningfulnessScore += 0.3;
-    } else if (exploredArtists.size === 2) {
-      meaningfulnessScore += 0.15;
-    }
-    
-    // Check for organic revisits after weeks (i.e., events spanning more than 3 weeks)
-    if (evalEvents.length > 1) {
-      const firstEvalMs = evalEvents[0].timestamp.getTime();
-      const lastEvalMs = evalEvents[evalEvents.length - 1].timestamp.getTime();
-      const spanWeeks = (lastEvalMs - firstEvalMs) / (7 * 24 * 60 * 60 * 1000);
-      if (spanWeeks > 3) {
-        meaningfulnessScore += 0.2;
-      }
-    }
-
-    const meaningfulness = Math.min(1.0, meaningfulnessScore);
-
-    // --- FINAL TERRITORY SCORE ---
-    // A territory must be foreign, voluntarily explored, repeatedly revisited, meaningfully integrated.
-    const territoryExpansionScore = foreignness * durability * agency * meaningfulness;
-    
-    if (territoryExpansionScore > 0) {
+    if (score > 0) {
       adoptedCount++;
       sumForeignness += foreignness;
       sumDurability += durability;
       sumAgency += agency;
       sumMeaningfulness += meaningfulness;
-      totalScoreSum += territoryExpansionScore;
-
+      totalScoreSum += score;
       contributingTerritories.push({
         territoryId,
         foreignness,
         durability,
         agency,
         meaningfulness,
-        contribution: territoryExpansionScore,
+        contribution: score,
       });
     }
   }
 
-  // Normalize final TEM Score
-  const rawTEM = totalScoreSum;
-  // Use exponential normalization with an empirical scale factor.
-  // E.g., if a user strongly adopts 1 territory (score ~0.8), TEM ~ 0.33
-  // If a user strongly adopts 3 territories (score ~2.4), TEM ~ 0.69
-  // If a user strongly adopts 5 territories (score ~4.0), TEM ~ 0.86
-  const finalTEM = exponentialNormalize(rawTEM, 0.5);
+  const finalTEM = exponentialNormalize(totalScoreSum, 0.5);
 
   return {
     score: finalTEM,
@@ -283,7 +277,32 @@ export async function calculateTEM(
     meaningfulness: adoptedCount > 0 ? sumMeaningfulness / adoptedCount : 0,
     contributingTerritories,
     evaluationWindow: config.evaluationWindowDays,
-    confidence: Math.min(1.0, events.length / 500), // Basic confidence proxy
+    confidence: Math.min(1.0, events.length / 500),
     version: '2.0',
   };
+}
+
+export async function calculateTEM(
+  userId: string,
+  evaluationEndDate: Date,
+  config: TEMConfig = DEFAULT_TEM_CONFIG,
+): Promise<TEMResult> {
+  const evalEnd = evaluationEndDate.getTime();
+  const evalStart = evalEnd - config.evaluationWindowDays * 24 * 60 * 60 * 1000;
+  const baselineStart = evalStart - config.baselineWindowDays * 24 * 60 * 60 * 1000;
+
+  const events = await prisma.userListeningEvent.findMany({
+    where: {
+      userId,
+      timestamp: {
+        gte: new Date(baselineStart),
+        lte: new Date(evalEnd),
+      },
+    },
+    orderBy: {
+      timestamp: 'asc',
+    },
+  });
+
+  return calculateTEMFromEvents(events as TemListenEvent[], evaluationEndDate, config);
 }

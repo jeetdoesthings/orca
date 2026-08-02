@@ -32,20 +32,35 @@ function genreToThreeColor(genres: string[]): THREE.Color {
   return GENRE_COLORS_THREE[genre].clone();
 }
 
-function getNodeRadius(weight: number): number {
-  if (weight > 0.8) return 0.028;
-  if (weight > 0.5) return 0.022;
-  if (weight > 0.2) return 0.016;
-  return 0.013;
+function genreToThreeColorRef(genres: string[]): THREE.Color {
+  const genre = (genres[0] || '').toLowerCase();
+  if (!GENRE_COLORS_THREE[genre]) {
+    GENRE_COLORS_THREE[genre] = new THREE.Color(getGenreColor(genre));
+  }
+  return GENRE_COLORS_THREE[genre];
+}
+
+function getNodeRadius(weight: number, isFrontier = false): number {
+  // Slightly larger dots so light-mode globe stays readable
+  if (isFrontier) {
+    if (weight > 0.5) return 0.032;
+    return 0.026;
+  }
+  if (weight > 0.8) return 0.034;
+  if (weight > 0.5) return 0.028;
+  if (weight > 0.2) return 0.022;
+  return 0.018;
 }
 
 const MAX_NODES = 2500;
 const R = 1.65;
 
-// Magnetic hover constants
-const MAGNET_RADIUS = 18;
-const MAGNET_STRENGTH = 3.2;
-const SNAP_SPEED = 0.08;
+// Magnetic hover — only the single closest node, and only when truly near cursor.
+// Old MAGNET_RADIUS=18 + push-away made the whole field churn whenever pointer sat on globe.
+const MAGNET_RADIUS = 5.5;
+const MAGNET_STRENGTH = 1.6;
+const SNAP_SPEED = 0.14;
+const HOVER_ACTIVATE_DIST = 6;
 
 export function NodeField() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -75,32 +90,37 @@ export function NodeField() {
       side: THREE.DoubleSide,
       depthWrite: false,
       transparent: true,
-      opacity: 0.92,
+      opacity: 1.0,
       vertexColors: true,
     });
     mat.onBeforeCompile = (shader) => {
-      shader.vertexShader = `
-        attribute float instanceOpacity;
-        varying float vOpacity;
-      ` + shader.vertexShader;
-
-      shader.vertexShader = shader.vertexShader.replace(
-        'void main() {',
-        `
-        void main() {
+      // instanceOpacity is custom (not Three built-in) — declare once.
+      if (!shader.vertexShader.includes('attribute float instanceOpacity')) {
+        shader.vertexShader =
+          `attribute float instanceOpacity;\nvarying float vOpacity;\n` +
+          shader.vertexShader;
+      }
+      if (!shader.vertexShader.includes('vOpacity = instanceOpacity')) {
+        shader.vertexShader = shader.vertexShader.replace(
+          'void main() {',
+          `void main() {
           vOpacity = instanceOpacity;
-        `
-      );
+        `,
+        );
+      }
 
-      shader.fragmentShader = `
-        varying float vOpacity;
-      ` + shader.fragmentShader;
-
-      shader.fragmentShader = shader.fragmentShader.replace(
-        'vec4 diffuseColor = vec4( diffuse, opacity );',
-        'vec4 diffuseColor = vec4( diffuse, opacity * vOpacity );'
-      );
+      if (!shader.fragmentShader.includes('varying float vOpacity')) {
+        shader.fragmentShader =
+          `varying float vOpacity;\n` + shader.fragmentShader;
+      }
+      if (!shader.fragmentShader.includes('opacity * vOpacity')) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          'vec4 diffuseColor = vec4( diffuse, opacity );',
+          'vec4 diffuseColor = vec4( diffuse, opacity * vOpacity );',
+        );
+      }
     };
+    mat.customProgramCacheKey = () => 'orca-nodefield-opacity-v3';
     return mat;
   }, []);
 
@@ -118,6 +138,9 @@ export function NodeField() {
   const _outward = useMemo(() => new THREE.Vector3(), []);
   const _camDir = useMemo(() => new THREE.Vector3(), []);
   const _nodeDir = useMemo(() => new THREE.Vector3(), []);
+  const _tempColor = useMemo(() => new THREE.Color(), []);
+  const _whiteColor = useMemo(() => new THREE.Color('#ffffff'), []);
+  const _blendColor = useMemo(() => new THREE.Color(), []);
 
   const nodeCount = useRef(0);
 
@@ -133,10 +156,14 @@ export function NodeField() {
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const pointerDownTime = useRef(0);
 
-  // Combine graph nodes and frontier nodes
   const allNodes = useMemo(() => {
     if (!graph) return [];
-    return [...graph.nodes, ...frontierNodes];
+    const explored = graph.nodes.map((n) => ({ ...n, state: 'explored' as const }));
+    // Only in-depth unexplored nodes — out-of-band must disappear
+    const frontier = frontierNodes
+      .filter((n) => n.visible !== false && n.reachable !== false)
+      .map((n) => ({ ...n, state: 'frontier' as const }));
+    return [...explored, ...frontier];
   }, [graph, frontierNodes]);
 
   // Canvas-level click detection — doesn't interfere with OrbitControls
@@ -261,6 +288,7 @@ export function NodeField() {
     if (!mesh || !hitSphere || allNodes.length === 0) return;
 
     const count = Math.min(allNodes.length, MAX_NODES);
+    mesh.count = count;
 
     // ── Raycast for hover ──
     raycaster.setFromCamera(pointer, camera);
@@ -273,7 +301,7 @@ export function NodeField() {
       isHovering.current = false;
     }
 
-    // ── Magnetic displacement ──
+    // ── Magnetic displacement (closest node only; rest stay parked) ──
     let closestDist = Infinity;
     let closestNodeId: string | null = null;
 
@@ -281,6 +309,12 @@ export function NodeField() {
       for (const node of allNodes) {
         const orig = originalLatLngs.current.get(node.id);
         if (!orig) continue;
+
+        // Skip out-of-window or OCSE-rejected frontier for hover / snap
+        if (node.state === 'frontier' && (node.visible === false || node.reachable === false)) {
+          continue;
+        }
+
         const dLat = mouseGlobeLatLng.current.lat - orig.lat;
         const dLng = mouseGlobeLatLng.current.lng - orig.lng;
         const dist = Math.sqrt(dLat * dLat + dLng * dLng);
@@ -291,6 +325,11 @@ export function NodeField() {
       }
     }
 
+    const magnetActive =
+      !!mouseGlobeLatLng.current &&
+      !!closestNodeId &&
+      closestDist < HOVER_ACTIVATE_DIST;
+
     for (const node of allNodes) {
       const orig = originalLatLngs.current.get(node.id);
       const cur = currentLatLngs.current.get(node.id);
@@ -299,31 +338,39 @@ export function NodeField() {
       let targetLat = orig.lat;
       let targetLng = orig.lng;
 
-      if (mouseGlobeLatLng.current) {
+      // Only the hovered node drifts toward cursor — no field-wide push-away
+      if (
+        magnetActive &&
+        mouseGlobeLatLng.current &&
+        node.id === closestNodeId &&
+        closestDist > 0.1 &&
+        closestDist < MAGNET_RADIUS
+      ) {
         const dLat = mouseGlobeLatLng.current.lat - orig.lat;
         const dLng = mouseGlobeLatLng.current.lng - orig.lng;
-        const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-
-        if (dist < MAGNET_RADIUS && dist > 0.1) {
-          const effect = MAGNET_STRENGTH * Math.pow(1 - dist / MAGNET_RADIUS, 2);
-          if (node.id === closestNodeId && closestDist < 8) {
-            // Single closest snaps to cursor
-            targetLat = orig.lat + (dLat / dist) * (effect * 0.4);
-            targetLng = orig.lng + (dLng / dist) * (effect * 0.4);
-          } else {
-            // Pushed away to clear space
-            targetLat = orig.lat - (dLat / dist) * (effect * 0.75);
-            targetLng = orig.lng - (dLng / dist) * (effect * 0.75);
-          }
-        }
+        const dist = Math.max(closestDist, 0.1);
+        const effect = MAGNET_STRENGTH * Math.pow(1 - dist / MAGNET_RADIUS, 2);
+        targetLat = orig.lat + (dLat / dist) * (effect * 0.35);
+        targetLng = orig.lng + (dLng / dist) * (effect * 0.35);
       }
 
-      cur.lat += (targetLat - cur.lat) * SNAP_SPEED;
-      cur.lng += (targetLng - cur.lng) * SNAP_SPEED;
+      // Snap hard when near rest so field doesn't micro-jitter forever
+      const dLatT = targetLat - cur.lat;
+      const dLngT = targetLng - cur.lng;
+      if (Math.abs(dLatT) + Math.abs(dLngT) < 0.002) {
+        cur.lat = targetLat;
+        cur.lng = targetLng;
+      } else {
+        cur.lat += dLatT * SNAP_SPEED;
+        cur.lng += dLngT * SNAP_SPEED;
+      }
     }
 
     // Update hovered node (throttled)
-    const newClosest = (isHovering.current && closestNodeId && closestDist < 8) ? closestNodeId : null;
+    const newClosest =
+      isHovering.current && closestNodeId && closestDist < HOVER_ACTIVATE_DIST
+        ? closestNodeId
+        : null;
     if (newClosest !== closestNodeRef.current) {
       closestNodeRef.current = newClosest;
       setHoveredNode(newClosest);
@@ -341,6 +388,19 @@ export function NodeField() {
           directNeighbors.add(targetId);
         } else if (targetId === pinnedNodeId) {
           directNeighbors.add(sourceId);
+        }
+      }
+      // Frontier seed links are not in graph.edges — include adjacentTo
+      const frontierNodesNow = useOrcaStore.getState().frontierNodes;
+      const pinnedFrontier = frontierNodesNow.find((f) => f.id === pinnedNodeId);
+      if (pinnedFrontier?.adjacentTo) {
+        for (const adj of pinnedFrontier.adjacentTo) {
+          directNeighbors.add(adj);
+        }
+      }
+      for (const fn of frontierNodesNow) {
+        if (fn.adjacentTo?.includes(pinnedNodeId)) {
+          directNeighbors.add(fn.id);
         }
       }
       for (const edge of graph.edges) {
@@ -379,15 +439,38 @@ export function NodeField() {
       const facing = _nodeDir.dot(_camDir);
       const visibility = Math.max(0, Math.min(1, (facing + 0.05) / 0.3));
 
-      const baseWeight = node.weight;
+      const baseWeight = node.weight ?? 0.4;
       let scaleMultiplier = 1.0;
-      let targetOpacity = 0.92;
+      // Explored: solid and bright on light globe
+      let targetOpacity = 0.98;
 
-      // Frontier node pulse: staggered slow pulse of scale, keeping opacity bright (0.92)
+      // Frontier: opacity breathe only — no scale thrash (looked like nodes crawling)
       if (node.state === 'frontier') {
         const phase = (time + i * 0.23) % 3.5;
-        // Pulse scaleMultiplier between 0.95 and 1.25
-        scaleMultiplier = 1.10 + 0.15 * Math.sin(phase * Math.PI * 2 / 3.5);
+        const wave = Math.sin((phase * Math.PI * 2) / 3.5);
+        scaleMultiplier = 1.05;
+        const pulseOpacity = 0.9 + 0.06 * wave;
+        const tierMul =
+          typeof node.tierEmphasis === 'number' ? node.tierEmphasis : 1;
+        targetOpacity = Math.max(0.6, pulseOpacity * tierMul);
+        scaleMultiplier *= 0.94 + 0.1 * Math.min(1, tierMul);
+
+        colorNeedsUpdate = true;
+        _tempColor.copy(genreToThreeColorRef(node.genres));
+        // Subtle lift, not washed-out white
+        _tempColor.lerp(_whiteColor, 0.1 + 0.05 * wave);
+        mesh.setColorAt(i, _tempColor);
+
+        if (node.visible === false || node.reachable === false) {
+          scaleMultiplier = 0.0;
+          targetOpacity = 0.0;
+        }
+      } else {
+        colorNeedsUpdate = true;
+        _tempColor.copy(genreToThreeColorRef(node.genres));
+        // Slight saturate boost for explored on light bg
+        _tempColor.offsetHSL(0, 0.05, 0.02);
+        mesh.setColorAt(i, _tempColor);
       }
 
       // Transition node celebration animations
@@ -395,7 +478,8 @@ export function NodeField() {
         const elapsed = Date.now() - expansionEvent.timestamp;
         if (elapsed < 1200) {
           colorNeedsUpdate = true;
-          const color = genreToThreeColor(node.genres);
+          // Use _tempColor to avoid garbage collection allocation
+          _tempColor.copy(genreToThreeColorRef(node.genres));
           
           if (elapsed < 400) {
             // Scale up phase: 0-400ms, cubic ease-out
@@ -403,7 +487,8 @@ export function NodeField() {
             const ease = 1 - Math.pow(1 - t, 3);
             scaleMultiplier = 0.65 + (1.4 - 0.65) * ease;
             targetOpacity = 0.38 + 0.62 * ease;
-            color.lerp(new THREE.Color('#fafafa'), 0.85 * (1 - ease));
+            // Lerp with _whiteColor to make it flash
+            _tempColor.lerp(_whiteColor, 0.85 * (1 - ease));
           } else {
             // Scale down phase: 400-1200ms, quad ease-out
             const t = (elapsed - 400) / 800;
@@ -412,11 +497,16 @@ export function NodeField() {
             targetOpacity = 1.0;
             // Remains at full biome saturation color
           }
-          mesh.setColorAt(i, color);
+          mesh.setColorAt(i, _tempColor);
         }
       }
 
-      let radius = getNodeRadius(baseWeight) * scaleMultiplier * visibility;
+      // Soft backface: don't zero out edge-on nodes completely
+      const faceMul = 0.35 + 0.65 * visibility;
+      let radius =
+        getNodeRadius(baseWeight, node.state === 'frontier') *
+        scaleMultiplier *
+        faceMul;
 
       // Pinned Node Camera focus transitions
       const isFocused = node.id === focusedNodeId;
@@ -434,21 +524,29 @@ export function NodeField() {
       _obj.updateMatrix();
       mesh.setMatrixAt(i, _obj.matrix);
 
-      // Relationship isolation opacity dampening
+      // Pin isolation: dim others gently (still visible on light globe)
       if (pinnedNodeId) {
         if (node.id === pinnedNodeId || directNeighbors.has(node.id)) {
-          // Keep base targetOpacity
+          targetOpacity = Math.max(targetOpacity, 0.95);
+          if (node.id === pinnedNodeId) radius *= 1.2;
         } else if (secondaryNeighbors.has(node.id)) {
-          targetOpacity = Math.min(targetOpacity, 0.5);
+          targetOpacity = Math.min(targetOpacity, 0.72);
         } else {
-          targetOpacity = Math.min(targetOpacity, 0.15);
+          targetOpacity = Math.min(targetOpacity, 0.5);
+        }
+        // Re-apply matrix if radius changed for pin
+        if (node.id === pinnedNodeId) {
+          _obj.scale.setScalar(radius);
+          _obj.updateMatrix();
+          mesh.setMatrixAt(i, _obj.matrix);
         }
       }
 
       if (attr) {
         const currentOpacity = attr.getX(i);
-        const nextOpacity = currentOpacity + (targetOpacity - currentOpacity) * 0.15;
-        attr.setX(i, nextOpacity);
+        // Snap toward target faster so UI doesn't lag into "invisible"
+        const nextOpacity = currentOpacity + (targetOpacity - currentOpacity) * 0.28;
+        attr.setX(i, Math.min(1, Math.max(0, nextOpacity)));
       }
     }
 

@@ -10,6 +10,8 @@ import type { UserProfile } from '@/lib/profile/types';
 import { computeAdventurousness } from '@/lib/metrics/adventurousness';
 import type { AdventurousnessMetric } from '@/lib/metrics/adventurousness';
 import type { GeoGap } from '@/lib/metrics/geographicCoverage';
+import type { ExplorationDepthId } from '@/lib/config/world';
+import { filterFrontierByDepth } from '@/lib/frontier/depth-filter';
 
 export interface PerimeterData {
   genre: string;
@@ -35,7 +37,7 @@ interface OrcaStore {
   pinnedNodeId: string | null;
 
   // ── Globe Filters (Phase 3.5) ──
-  showJourney: boolean;
+
   showHistory: boolean;
   relationshipFilter: 'ALL' | 'MY_TERRITORY' | 'UNEXPLORED';
 
@@ -44,8 +46,13 @@ interface OrcaStore {
   preloadsLoaded: boolean;
   error: string | null;
 
-  // ── Phase 2 additions ──
+  // ── Phase 2 additions (TODO: Migrate frontierNodes / frontierPanelOpen state names to expansion terminology in a future cleanup) ──
+  /** Full unexplored universe (unfiltered). Depth filter never mutates this. */
+  frontierUniverse: OrcaNode[];
+  /** Visible unexplored after Shore/Shallow/Deep/Alo filter. */
   frontierNodes: OrcaNode[];
+  /** Active exploration depth control. */
+  explorationDepth: ExplorationDepthId;
   perimeterData: PerimeterData[];
   frontierPanelOpen: boolean;
   previewingNode: OrcaNode | null;
@@ -56,6 +63,18 @@ interface OrcaStore {
   userProfile: UserProfile | null;
   homeRegion?: { lat: number; lng: number; label?: string; spread: number } | null;
   tasteSummary?: string;
+
+  /** Session readiness / surface from globe payload (no window globals). */
+  recommendedTier: 'comfort' | 'expansion' | 'leap' | null;
+  leapBucketFallback: boolean;
+  shoreBucketFallback: boolean;
+  distanceVarianceCollapsed: boolean;
+  readinessReasoning: string;
+  surfaceBucketIds: {
+    comfort: string[];
+    expansion: string[];
+    leap: string[];
+  } | null;
 
   // ── Actions ──
   setGraph: (graph: OrcaGraph) => void;
@@ -69,7 +88,7 @@ interface OrcaStore {
   setFocusedNode: (id: string | null) => void;
   setHoveredNode: (id: string | null) => void;
   setPinnedNode: (id: string | null) => void;
-  setShowJourney: (show: boolean) => void;
+
   setShowHistory: (show: boolean) => void;
   setRelationshipFilter: (filter: 'ALL' | 'MY_TERRITORY' | 'UNEXPLORED') => void;
   setLoading: (loading: boolean) => void;
@@ -77,6 +96,14 @@ interface OrcaStore {
   setError: (error: string | null) => void;
 
   // ── Phase 2 Actions ──
+  /**
+   * Replace full unexplored universe and re-apply current depth filter
+   * into frontierNodes (what the globe + panel render).
+   */
+  setFrontierUniverse: (nodes: OrcaNode[]) => void;
+  /** Change depth: refilter universe → frontierNodes (out-of-band disappear). */
+  setExplorationDepth: (depth: ExplorationDepthId) => void;
+  /** @deprecated prefer setFrontierUniverse; kept for call sites that set display list */
   setFrontierNodes: (nodes: OrcaNode[]) => void;
   setPerimeterData: (data: PerimeterData[]) => void;
   setFrontierPanelOpen: (open: boolean) => void;
@@ -85,6 +112,16 @@ interface OrcaStore {
   setAdventurousness: (metric: AdventurousnessMetric) => void;
   setGeographicGaps: (gaps: GeoGap[]) => void;
   setUserProfile: (profile: UserProfile | null) => void;
+  setHomeRegion: (region: OrcaStore['homeRegion']) => void;
+  setTasteSummary: (summary: string) => void;
+  setReadinessPayload: (payload: {
+    recommendedTier?: 'comfort' | 'expansion' | 'leap' | null;
+    leapBucketFallback?: boolean;
+    shoreBucketFallback?: boolean;
+    distanceVarianceCollapsed?: boolean;
+    readinessReasoning?: string;
+    surfaceBucketIds?: OrcaStore['surfaceBucketIds'];
+  }) => void;
   transitionNodeToExplored: (artistId: string) => void;
   revertNodeTransition: (artistId: string) => void;
   updateNodeImageUrl: (id: string, imageUrl: string) => void;
@@ -102,7 +139,7 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   focusedNodeId: null,
   hoveredNodeId: null,
   pinnedNodeId: null,
-  showJourney: true,
+
   showHistory: false,
   relationshipFilter: 'ALL',
 
@@ -111,7 +148,9 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   error: null,
 
   // Phase 2 additions initial state
+  frontierUniverse: [],
   frontierNodes: [],
+  explorationDepth: 'far',
   perimeterData: [],
   frontierPanelOpen: false,
   previewingNode: null,
@@ -122,6 +161,12 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   userProfile: null,
   homeRegion: null,
   tasteSummary: '',
+  recommendedTier: null,
+  leapBucketFallback: false,
+  shoreBucketFallback: false,
+  distanceVarianceCollapsed: false,
+  readinessReasoning: '',
+  surfaceBucketIds: null,
 
   // Actions
   setGraph: (graph) => set({ graph }),
@@ -154,7 +199,7 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setFocusedNode: (id) => set({ focusedNodeId: id }),
   setHoveredNode: (id) => set({ hoveredNodeId: id }),
   setPinnedNode: (id) => set({ pinnedNodeId: id }),
-  setShowJourney: (show) => set({ showJourney: show }),
+
   setShowHistory: (show) => set({ showHistory: show }),
   setRelationshipFilter: (filter) => set({ relationshipFilter: filter }),
   setLoading: (loading) => set({ isLoading: loading }),
@@ -162,7 +207,56 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setError: (error) => set({ error }),
 
   // Phase 2 Actions
-  setFrontierNodes: (nodes) => set({ frontierNodes: nodes }),
+  setFrontierUniverse: (nodes) => {
+    const universe = nodes.map((n) => ({
+      ...n,
+      state: 'frontier' as const,
+      reachable: n.reachable !== false,
+    }));
+    const depth = get().explorationDepth;
+    // Display list = ONLY in-band nodes (out-of-band fully removed from render path)
+    // Last-resort remap only — honesty flags merge into store when remap fires
+    const { nodes: spreadNodes, meta } = filterFrontierByDepth(universe, depth);
+    const filtered = spreadNodes.filter(
+      (n) => n.visible !== false && n.reachable !== false && n.inActiveDepth !== false,
+    );
+    set({
+      frontierUniverse: universe,
+      frontierNodes: filtered,
+      // Client last-resort remap can raise flags; never clear server-true flags here
+      shoreBucketFallback: meta.shoreBucketFallback
+        ? true
+        : get().shoreBucketFallback,
+      distanceVarianceCollapsed: meta.distanceVarianceCollapsed
+        ? true
+        : get().distanceVarianceCollapsed,
+    });
+  },
+  setExplorationDepth: (depth) => {
+    const universe = get().frontierUniverse;
+    if (universe.length === 0) {
+      set({ explorationDepth: depth });
+      return;
+    }
+    const { nodes: spreadNodes, meta } = filterFrontierByDepth(universe, depth);
+    const filtered = spreadNodes.filter(
+      (n) => n.visible !== false && n.reachable !== false && n.inActiveDepth !== false,
+    );
+    set({
+      explorationDepth: depth,
+      frontierNodes: filtered,
+      shoreBucketFallback: meta.shoreBucketFallback
+        ? true
+        : get().shoreBucketFallback,
+      distanceVarianceCollapsed: meta.distanceVarianceCollapsed
+        ? true
+        : get().distanceVarianceCollapsed,
+    });
+  },
+  setFrontierNodes: (nodes) => {
+    // Treat as full universe replace + refilter (safe default)
+    get().setFrontierUniverse(nodes);
+  },
   setPerimeterData: (data) => set({ perimeterData: data }),
   setFrontierPanelOpen: (open) => set({ frontierPanelOpen: open }),
   setPreviewingNode: (node) => set({ previewingNode: node }),
@@ -170,6 +264,35 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
   setAdventurousness: (metric) => set({ adventurousness: metric }),
   setGeographicGaps: (gaps) => set({ geographicGaps: gaps }),
   setUserProfile: (profile) => set({ userProfile: profile }),
+  setHomeRegion: (region) => set({ homeRegion: region }),
+  setTasteSummary: (summary) => set({ tasteSummary: summary }),
+  setReadinessPayload: (payload) =>
+    set({
+      recommendedTier:
+        payload.recommendedTier !== undefined
+          ? payload.recommendedTier
+          : get().recommendedTier,
+      leapBucketFallback:
+        payload.leapBucketFallback !== undefined
+          ? payload.leapBucketFallback
+          : get().leapBucketFallback,
+      shoreBucketFallback:
+        payload.shoreBucketFallback !== undefined
+          ? payload.shoreBucketFallback
+          : get().shoreBucketFallback,
+      distanceVarianceCollapsed:
+        payload.distanceVarianceCollapsed !== undefined
+          ? payload.distanceVarianceCollapsed
+          : get().distanceVarianceCollapsed,
+      readinessReasoning:
+        payload.readinessReasoning !== undefined
+          ? payload.readinessReasoning
+          : get().readinessReasoning,
+      surfaceBucketIds:
+        payload.surfaceBucketIds !== undefined
+          ? payload.surfaceBucketIds
+          : get().surfaceBucketIds,
+    }),
 
   transitionNodeToExplored: (artistId) => {
     set(state => {

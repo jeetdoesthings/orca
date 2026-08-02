@@ -65,20 +65,20 @@ export async function GET(req: Request) {
     ]);
 
     // Format output
-    const formattedTerritories = territories.map((t) => {
+    const formattedTerritories = territories.map((t: any) => {
       let meta = {};
       try {
         if (t.metadata) meta = JSON.parse(t.metadata);
       } catch {}
 
-      const members = t.memberships.map((m) => ({
+      const members = t.memberships.map((m: any) => ({
         artistId: m.artistId,
         displayName: m.artist.displayName,
         popularity: m.artist.popularity,
         imageUrl: m.artist.imageUrl,
         strength: m.membershipStrength,
         role: m.role,
-      })).sort((a, b) => b.strength - a.strength);
+      })).sort((a: any, b: any) => b.strength - a.strength);
 
       return {
         id: t.id,
@@ -95,14 +95,14 @@ export async function GET(req: Request) {
       version,
       territoriesCount: formattedTerritories.length,
       territories: formattedTerritories,
-      similarities: similarities.map((s) => ({
+      similarities: similarities.map((s: any) => ({
         territoryA: s.territoryAId,
         territoryB: s.territoryBId,
         similarity: s.similarity,
         distance: s.distance,
       })),
       bridgesCount: bridges.length,
-      bridges: bridges.map((b) => ({
+      bridges: bridges.map((b: any) => ({
         artistId: b.artistId,
         displayName: b.artist.displayName,
         territoryA: b.territoryAId,

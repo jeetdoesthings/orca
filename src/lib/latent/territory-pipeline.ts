@@ -65,7 +65,7 @@ export async function generateTasteTerritories(params: PipelineParams = {}): Pro
   const latentNodes: LatentNode[] = [];
   const artistMap = new Map<string, typeof embeddings[0]>();
 
-  embeddings.forEach((emb) => {
+  embeddings.forEach((emb: any) => {
     try {
       const vec: number[] = JSON.parse(emb.fusedVector!);
       if (vec.length > 0) {
@@ -332,7 +332,7 @@ export async function generateTasteTerritories(params: PipelineParams = {}): Pro
     : [];
 
   const prevTerritoriesMap = new Map<string, typeof prevTerritories[0]>();
-  prevTerritories.forEach((t) => prevTerritoriesMap.set(t.id, t));
+  prevTerritories.forEach((t: any) => prevTerritoriesMap.set(t.id, t));
 
   interface EvolutionData {
     stability: number;
@@ -344,10 +344,10 @@ export async function generateTasteTerritories(params: PipelineParams = {}): Pro
   const evolutionMap = new Map<number, EvolutionData>();
 
   // Map each new territory to its most similar previous territory
-  const prevCentroids = prevTerritories.map((pt) => {
+  const prevCentroids = prevTerritories.map((pt: any) => {
     try {
       const vec: number[] = JSON.parse(pt.centroidVector);
-      return { id: pt.id, vector: vec, memberIds: pt.memberships.map((m) => m.artistId) };
+      return { id: pt.id, vector: vec, memberIds: pt.memberships.map((m: any) => m.artistId) };
     } catch {
       return null;
     }
@@ -355,7 +355,7 @@ export async function generateTasteTerritories(params: PipelineParams = {}): Pro
 
   const prevMatchCount = new Map<string, number>();
 
-  processedTerritories.forEach((pt) => {
+  processedTerritories.forEach((pt: any) => {
     let bestPrev = null;
     let maxSim = -1;
 
@@ -508,7 +508,7 @@ export async function generateTasteTerritories(params: PipelineParams = {}): Pro
     bridgeStrength: b.bridgeStrength,
   }));
 
-  const similarityRows = similarities.map(sim => ({
+  const similarityRows = similarities.map((sim: any) => ({
     territoryAId: getDbId(sim.tempAIdx),
     territoryBId: getDbId(sim.tempBIdx),
     similarity: sim.similarity,
@@ -516,7 +516,7 @@ export async function generateTasteTerritories(params: PipelineParams = {}): Pro
   }));
 
   // 5 batched bulk inserts replace ~1575 sequential awaited create() calls
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.territory.createMany({ data: territoryRows });
     await tx.territorySnapshot.createMany({ data: snapshotRows });
     await tx.territoryMembership.createMany({ data: membershipRows });

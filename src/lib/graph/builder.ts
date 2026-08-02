@@ -28,17 +28,29 @@ export function genreToColor(genre: string): string {
  * so this just deduplicates and computes genre regions.
  */
 export function buildGraph(nodes: OrcaNode[], edges: OrcaEdge[]): OrcaGraph {
-  // Deduplicate edges
+  // Only keep edges whose endpoints exist in the node set.
+  // Stale adjacentTo / lastfm-* seed ids (e.g. lastfm-kanyewest) after Spotify
+  // login otherwise crash d3-force-3d with "node not found: …".
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const alias = buildIdAliasMap(nodes);
+
   const edgeSet = new Set<string>();
   const dedupedEdges: OrcaEdge[] = [];
 
   for (const e of edges) {
-    const src = typeof e.source === 'string' ? e.source : e.source.id;
-    const tgt = typeof e.target === 'string' ? e.target : e.target.id;
+    let src = typeof e.source === 'string' ? e.source : e.source.id;
+    let tgt = typeof e.target === 'string' ? e.target : e.target.id;
+    src = alias.get(src) || src;
+    tgt = alias.get(tgt) || tgt;
+    if (!nodeIds.has(src) || !nodeIds.has(tgt) || src === tgt) continue;
     const key = edgeKey(src, tgt);
     if (!edgeSet.has(key)) {
       edgeSet.add(key);
-      dedupedEdges.push(e);
+      dedupedEdges.push({
+        ...e,
+        source: src,
+        target: tgt,
+      } as OrcaEdge);
     }
   }
 
@@ -46,6 +58,56 @@ export function buildGraph(nodes: OrcaNode[], edges: OrcaEdge[]): OrcaGraph {
   const genres = buildGenreRegions(nodes);
 
   return { nodes, edges: dedupedEdges, genres };
+}
+
+/**
+ * Map alternate id forms → actual node id present in the graph.
+ * e.g. lastfm-kanyewest / spotify-5K4… → 5K4… when that node exists.
+ */
+function buildIdAliasMap(nodes: OrcaNode[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const byCompact = new Map<string, string>();
+
+  const compact = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+  for (const n of nodes) {
+    map.set(n.id, n.id);
+    if (n.id.startsWith('spotify-')) {
+      map.set(n.id.slice('spotify-'.length), n.id);
+    } else if (/^[0-9A-Za-z]{15,30}$/.test(n.id)) {
+      map.set(`spotify-${n.id}`, n.id);
+    }
+    const key = compact(n.name || '');
+    if (key) {
+      // Prefer Spotify-shaped ids over lastfm when both names collide
+      const prev = byCompact.get(key);
+      if (
+        !prev ||
+        (n.id.startsWith('lastfm-') === false && String(prev).startsWith('lastfm-'))
+      ) {
+        byCompact.set(key, n.id);
+      }
+      map.set(`lastfm-${key}`, n.id);
+    }
+  }
+
+  for (const [key, id] of byCompact) {
+    map.set(`lastfm-${key}`, id);
+  }
+  return map;
+}
+
+/** Filter + remap edges so forceLink never sees missing endpoints. */
+export function sanitizeGraphEdges(
+  nodes: OrcaNode[],
+  edges: OrcaEdge[],
+): OrcaEdge[] {
+  return buildGraph(nodes, edges).edges;
 }
 
 // ──────────────────────────────────────────────────

@@ -227,40 +227,247 @@ export const GENRE_LABELS: Record<InternalGenre, string> = {
 // Normaliser function
 // ──────────────────────────────────────────────────
 
+/** Broad input tags that should lose to more specific siblings when ranking. */
+const BROAD_INPUT_TAGS = new Set([
+  'electronic',
+  'electronica',
+  'electro',
+  'rock',
+  'pop',
+  'hip hop',
+  'hip-hop',
+  'rap',
+  'alternative',
+  'indie',
+  'dance',
+  'metal',
+  'r&b',
+  'rnb',
+  'soul',
+  'folk',
+  'jazz',
+  'classical',
+  'latin',
+  'world',
+  'world music',
+]);
+
+/** Output primaries that are umbrella buckets — penalise unless sole match. */
+const BROAD_OUTPUT: Partial<Record<InternalGenre, number>> = {
+  pop: 18,
+  rock: 14,
+  edm: 16,
+  'hip-hop': 10,
+  'world-music': 8,
+};
+
+/** Last.fm / MB noise that is never a musical genre. */
+const JUNK_TAG_RE =
+  /^(seen live|favorites?|favourite|check|love|awesome|beautiful|sexy|hot|cool|good|bad|under \d+|all|other|misc|unknown|music|songs?|albums?|artists?|band|new|old|best|top|my \w+|acoustic|instrumental|live|cover|covers|remix|ost|soundtrack only)$/i;
+const DEMOGRAPHIC_RE =
+  /^(male|female|german|french|canadian|british|american|english|uk|usa|us|swedish|australian|japanese|korean|spanish|italian|brazilian|mexican|irish|scottish|dutch|norwegian|danish|finnish|polish|russian|indian|african|asian)(\s+vocalists?)?$/i;
+const DECADE_RE = /^(19|20)\d{2}s?$|^\d{2}s$/i;
+const VOCALIST_RE = /vocalists?/;
+/** Role / format tags that map to a genre but should not beat real styles. */
+const SOFT_ROLE_TAGS = new Set([
+  'singer-songwriter',
+  'singer songwriter',
+  'songwriter',
+  'composer',
+  'producer',
+  'dj',
+  'band',
+  'solo',
+  'group',
+  'orchestra',
+  'choir',
+]);
+
+function compactName(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
 /**
- * Map an array of raw MusicBrainz genre/tag strings to a single
- * internal genre key. Tries exact match first, then substring match,
- * then falls back to 'pop' (the centre anchor).
+ * Drop Last.fm-style junk: artist self-tags, decades, demographics, "seen live".
  */
-export function normaliseGenre(rawTags?: string[] | null): InternalGenre {
-  if (!rawTags || !Array.isArray(rawTags)) {
-    return 'pop';
-  }
-  // Try each tag in order (assume caller sorted by relevance/count)
+export function cleanGenreTags(
+  rawTags?: string[] | null,
+  artistName?: string | null,
+): string[] {
+  if (!rawTags || !Array.isArray(rawTags)) return [];
+  const artistKey = artistName ? compactName(artistName) : '';
+  const out: string[] = [];
+  const seen = new Set<string>();
+
   for (const raw of rawTags) {
-    const key = raw?.toLowerCase().trim();
-    if (!key) continue;
-
-    // Exact match
-    if (GENRE_NORMALISER[key]) {
-      return GENRE_NORMALISER[key];
+    if (typeof raw !== 'string') continue;
+    const key = raw.toLowerCase().trim();
+    if (!key || key.length < 2 || key.length > 48) continue;
+    if (JUNK_TAG_RE.test(key) || DEMOGRAPHIC_RE.test(key) || DECADE_RE.test(key)) {
+      continue;
     }
-
-    // Partial match: prefer longer (more specific) patterns over short
-    // generic ones like 'pop' or 'rock' to prevent greedy mis-classification
-    let bestMatch: InternalGenre | null = null;
-    let bestLen = 0;
-    for (const [pattern, genre] of Object.entries(GENRE_NORMALISER)) {
-      if (key.includes(pattern) && pattern.length > bestLen) {
-        bestMatch = genre;
-        bestLen = pattern.length;
+    if (SOFT_ROLE_TAGS.has(key)) continue;
+    if (VOCALIST_RE.test(key) && !GENRE_NORMALISER[key]) continue;
+    // Artist name used as a tag (very common on Last.fm)
+    if (artistKey) {
+      const tk = compactName(key);
+      if (
+        tk === artistKey ||
+        (tk.length >= 4 && artistKey.includes(tk) && tk.length >= artistKey.length * 0.6) ||
+        (artistKey.length >= 4 && tk.includes(artistKey) && artistKey.length >= tk.length * 0.6)
+      ) {
+        continue;
       }
     }
-    if (bestMatch) return bestMatch;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+/**
+ * Map a single tag string to an internal genre + match quality score.
+ * Higher score = more specific / trustworthy primary.
+ */
+export function scoreGenreTag(raw: string): { genre: InternalGenre; score: number } | null {
+  const key = raw?.toLowerCase().trim();
+  if (!key) return null;
+
+  let genre: InternalGenre | null = null;
+  let patternLen = 0;
+  let exact = false;
+
+  if (GENRE_NORMALISER[key]) {
+    genre = GENRE_NORMALISER[key];
+    patternLen = key.length;
+    exact = true;
+  } else {
+    const dehyphen = key.replace(/-/g, ' ');
+    if (GENRE_NORMALISER[dehyphen]) {
+      genre = GENRE_NORMALISER[dehyphen];
+      patternLen = dehyphen.length;
+      exact = true;
+    } else {
+      let bestMatch: InternalGenre | null = null;
+      let bestLen = 0;
+      for (const [pattern, g] of Object.entries(GENRE_NORMALISER)) {
+        if (key.includes(pattern) && pattern.length > bestLen) {
+          bestMatch = g;
+          bestLen = pattern.length;
+        }
+      }
+      if (bestMatch) {
+        genre = bestMatch;
+        patternLen = bestLen;
+      }
+    }
   }
 
-  // Hard fallback — pop is the centre anchor, safe default
-  return 'pop';
+  if (!genre) return null;
+
+  // Base: longer pattern = more specific phrasing
+  let score = patternLen * 3 + (exact ? 12 : 0);
+
+  // Broad umbrella inputs (electronic, rock, pop…) lose to house/metal/country etc.
+  if (BROAD_INPUT_TAGS.has(key) || BROAD_INPUT_TAGS.has(key.replace(/-/g, ' '))) {
+    score -= 22;
+  }
+
+  // Prefer leaf territories over umbrella outputs when competing
+  score -= BROAD_OUTPUT[genre] ?? 0;
+
+  // Bonus for multi-word specialised tags (e.g. "progressive house", "thrash metal")
+  if ((key.includes(' ') || key.includes('-')) && !BROAD_INPUT_TAGS.has(key)) {
+    score += 6;
+  }
+
+  // Soft roles that slipped through map poorly (folk via singer-songwriter)
+  if (SOFT_ROLE_TAGS.has(key)) score -= 40;
+
+  return { genre, score };
+}
+
+/**
+ * Pick the best primary InternalGenre from a tag list (not first-tag-wins).
+ * Cleans junk first when artistName is provided.
+ */
+export function normaliseGenreOrUnknown(
+  rawTags?: string[] | null,
+  artistName?: string | null,
+): InternalGenre | null {
+  const cleaned = cleanGenreTags(rawTags, artistName);
+  // If cleaning wiped everything, still try raw (may be pure InternalGenre keys)
+  const tags = cleaned.length > 0 ? cleaned : (rawTags || []).map((t) => String(t).toLowerCase().trim()).filter(Boolean);
+  if (tags.length === 0) return null;
+
+  let best: { genre: InternalGenre; score: number } | null = null;
+  for (const tag of tags) {
+    const scored = scoreGenreTag(tag);
+    if (!scored) continue;
+    if (!best || scored.score > best.score) best = scored;
+  }
+  return best?.genre ?? null;
+}
+
+/**
+ * Canonical artist genre list for frontier / UI / GRE:
+ *   [primaryInternalGenre, ...clean human tags that map to other territories]
+ * Never invents pop. Drops junk. Prefers specific primary over first tag.
+ */
+export function resolveArtistGenres(
+  rawTags?: string[] | null,
+  artistName?: string | null,
+): string[] {
+  const cleaned = cleanGenreTags(rawTags, artistName);
+  const tags =
+    cleaned.length > 0
+      ? cleaned
+      : (rawTags || [])
+          .map((t) => String(t).toLowerCase().trim())
+          .filter((t) => t.length > 0);
+
+  if (tags.length === 0) return [];
+
+  const primary = normaliseGenreOrUnknown(tags, artistName);
+  if (!primary) return tags.slice(0, 6);
+
+  const secondary: string[] = [];
+  const seen = new Set<string>([primary]);
+  for (const tag of tags) {
+    const scored = scoreGenreTag(tag);
+    if (!scored) {
+      // keep unrecognised but non-junk as colour/flavour (max 4)
+      if (secondary.length < 4 && !seen.has(tag)) {
+        secondary.push(tag);
+        seen.add(tag);
+      }
+      continue;
+    }
+    if (scored.genre === primary) continue;
+    if (seen.has(scored.genre)) continue;
+    // Prefer storing the internal key for known genres (stable UI)
+    secondary.push(scored.genre);
+    seen.add(scored.genre);
+    if (secondary.length >= 5) break;
+  }
+
+  return [primary, ...secondary];
+}
+
+/**
+ * Map an array of raw genre/tag strings to a single
+ * internal genre key. Falls back to 'pop' for layout anchors only.
+ */
+export function normaliseGenre(
+  rawTags?: string[] | null,
+  artistName?: string | null,
+): InternalGenre {
+  return normaliseGenreOrUnknown(rawTags, artistName) ?? 'pop';
 }
 
 /**

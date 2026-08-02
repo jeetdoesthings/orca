@@ -18,8 +18,8 @@ import { ArtistImageLayer } from './orca/ArtistImageLayer';
 import { ArtistHoverCard } from './orca/ArtistHoverCard';
 import { FocusedArtistVisual } from './orca/FocusedArtistVisual';
 import { GenrePerimeter } from './orca/GenrePerimeter';
-import { FrontierLabels } from './orca/FrontierLabels';
-import { FrontierParticles } from './orca/FrontierParticles';
+import { ExpansionLabels } from './orca/ExpansionLabels';
+import { ExpansionParticles } from './orca/ExpansionParticles';
 // GeographicGaps removed
 import { OrcaHUD } from './OrcaHUD';
 import { useOrcaStore } from '@/store/orca';
@@ -283,7 +283,7 @@ function OrcaScene({
         <FocusedArtistVisual />
         <ArtistHoverCard />
         <NodeLabels />
-        <FrontierParticles />
+        <ExpansionParticles />
         {/* Unexplored text labels removed for a cleaner look with pulsing borders */}
       </group>
     </>
@@ -378,10 +378,12 @@ export function Orca() {
     setExpanding(true);
 
     try {
-      const response = await fetch('/api/orca/expand', {
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const isDemo = search.includes('demo=true');
+      const response = await fetch(`/api/orca/expand${search}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artistIds: candidates }),
+        body: JSON.stringify({ artistIds: candidates, demo: isDemo }),
       });
 
       if (!response.ok) return;
@@ -428,12 +430,13 @@ export function Orca() {
   useEffect(() => {
     let cancelled = false;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
+    const snapshotVersionRef = { current: -1 };
 
     function mergeGiaSnapshot(dest: any, src: any): boolean {
       if (!dest || !src) return false;
       let changed = false;
       const keys = [
-        'relationship', 'identity', 'journey', 'growth', 'currentSession',
+        'relationship', 'identity', 'growth', 'currentSession',
         'discovery', 'opportunities', 'history', 'confidence', 'availableActions'
       ];
       for (const key of keys) {
@@ -465,10 +468,25 @@ export function Orca() {
       setError(null);
 
       const search = typeof window !== 'undefined' ? window.location.search : '';
+      // Prefer readiness tier (Change D); fall back to legacy depth for old links
+      const globeSearch = (() => {
+        const p = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+        if (!p.has('tier') && !p.has('depth') && !p.has('slider')) {
+          // Server will default to Readiness Model recommendation
+        }
+        const q = p.toString();
+        return q ? `?${q}` : '';
+      })();
 
       const poll = async (): Promise<any> => {
         if (cancelled) return;
-        const res = await fetch(`/api/globe${search}`);
+        const res = await fetch(`/api/globe${globeSearch}`);
+        if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error('Unauthorized. Please connect your Spotify account.');
+          }
+          throw new Error(`Failed to fetch globe data (HTTP ${res.status}).`);
+        }
         const data = await res.json();
 
         if (data.status === 'syncing') {
@@ -476,9 +494,11 @@ export function Orca() {
           return poll();
         }
 
-        if (data.status === 'no_data') {
+        if (data.status === 'no_data' || data.status === 'syncing') {
           // First login, trigger user sync
-          await fetch(`/api/user/sync${search}`, { method: 'POST' });
+          if (data.status === 'no_data') {
+            await fetch(`/api/user/sync${search}`, { method: 'POST' });
+          }
           await new Promise(resolve => setTimeout(resolve, 2000));
           return poll();
         }
@@ -488,6 +508,12 @@ export function Orca() {
         }
 
         if (data.status === 'ready') {
+          // Ticket 4: globe never materializes — client must request write path.
+          if (data.needsMaterialization) {
+            await fetch(`/api/world/regenerate${search}`, { method: 'POST' }).catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return poll();
+          }
           return data;
         }
 
@@ -498,7 +524,7 @@ export function Orca() {
         const responseData = await poll();
         if (cancelled || !responseData) return;
 
-        const { nodes, edges, homeRegion, tasteSummary } = responseData;
+        const { nodes, edges, homeRegion, tasteSummary, snapshotVersion } = responseData;
 
         if (!nodes || nodes.length === 0 || !edges) {
           setError('No Spotify artist data found. Try connecting a different account.');
@@ -506,13 +532,115 @@ export function Orca() {
           return;
         }
 
-        // Store homeRegion and tasteSummary dynamically in the Zustand store
-        const storeState = useOrcaStore.getState() as any;
-        storeState.homeRegion = homeRegion;
-        storeState.tasteSummary = tasteSummary;
+        if (snapshotVersion !== undefined) {
+          snapshotVersionRef.current = snapshotVersion;
+        }
+
+        const storeState = useOrcaStore.getState();
+        storeState.setHomeRegion(homeRegion ?? null);
+        if (tasteSummary) storeState.setTasteSummary(tasteSummary);
+
+        const isOcseV2 = snapshotVersion !== undefined;
+        let exploredNodes = nodes;
+        if (isOcseV2) {
+          exploredNodes = nodes.filter((n: any) => n.state === 'explored');
+          let frontierNodes = nodes.filter((n: any) => n.state === 'frontier');
+          // Repair stale snapshots (all reachable=false / flat distances) then depth-filter
+          const { prepareFrontierForDisplay } = await import(
+            '@/lib/frontier/prepare-frontier'
+          );
+          const { applyProjectionVisibility } = await import(
+            '@/lib/frontier/world-projection'
+          );
+          frontierNodes = prepareFrontierForDisplay(frontierNodes).nodes;
+          const { applyTierEmphasis } = await import(
+            '@/lib/frontier/world-projection'
+          );
+          const urlTier =
+            typeof window !== 'undefined'
+              ? (new URLSearchParams(window.location.search).get('tier') as
+                  | 'comfort'
+                  | 'expansion'
+                  | 'leap'
+                  | null)
+              : null;
+          const recommended =
+            (responseData.recommendedTier as 'comfort' | 'expansion' | 'leap' | undefined) ||
+            (responseData.readinessState?.recommendedTier as
+              | 'comfort'
+              | 'expansion'
+              | 'leap'
+              | undefined) ||
+            'expansion';
+          const tier =
+            urlTier && ['comfort', 'expansion', 'leap'].includes(urlTier)
+              ? urlTier
+              : recommended;
+
+          const { normalizeSurfaceIds, nodeIdsForExplorationDepth, bucketToExplorationDepth } =
+            await import('@/lib/config/world');
+          const surfaceBucketIds = responseData.recommendationSurface
+            ? {
+                comfort: normalizeSurfaceIds(
+                  responseData.recommendationSurface.comfort,
+                ),
+                expansion: normalizeSurfaceIds(
+                  responseData.recommendationSurface.expansion,
+                ),
+                leap: normalizeSurfaceIds(
+                  responseData.recommendationSurface.leap,
+                ),
+              }
+            : null;
+          storeState.setReadinessPayload({
+            recommendedTier: recommended as
+              | 'comfort'
+              | 'expansion'
+              | 'leap'
+              | null,
+            readinessReasoning:
+              responseData.readinessState?.reasoning ||
+              responseData.recommendationSurface?.readiness?.reasoning ||
+              '',
+            leapBucketFallback:
+              responseData.leapBucketFallback ??
+              responseData.recommendationSurface?.leapBucketFallback ??
+              false,
+            shoreBucketFallback:
+              responseData.shoreBucketFallback ??
+              responseData.recommendationSurface?.shoreBucketFallback ??
+              false,
+            distanceVarianceCollapsed:
+              responseData.distanceVarianceCollapsed ??
+              responseData.recommendationSurface?.distanceVarianceCollapsed ??
+              false,
+            surfaceBucketIds,
+          });
+
+          // Match HUD depth (URL depth= or recommended tier)
+          const depthParam =
+            typeof window !== 'undefined'
+              ? new URLSearchParams(window.location.search).get('depth')
+              : null;
+          const depthId =
+            depthParam === 'close' ||
+            depthParam === 'far' ||
+            depthParam === 'farther' ||
+            depthParam === 'all' ||
+            depthParam === 'shore' ||
+            depthParam === 'shallow' ||
+            depthParam === 'deep' ||
+            depthParam === 'alo'
+              ? depthParam
+              : bucketToExplorationDepth(
+                  recommended as 'comfort' | 'expansion' | 'leap',
+                );
+          // Full universe → store filters by current explorationDepth
+          storeState.setFrontierUniverse(frontierNodes);
+        }
 
         // Build the graph (adds genre + audio-similarity edges)
-        const orcaGraph = buildGraph(nodes, edges);
+        const orcaGraph = buildGraph(exploredNodes, edges);
 
         // Create force layout
         const { createLayout } = await import('@/lib/graph/layout');
@@ -543,25 +671,7 @@ export function Orca() {
         }
 
         // Fetch and poll frontier data in parallel (non-blocking progressive loading)
-        const loadFrontier = async () => {
-          if (cancelled) return;
-          try {
-            const res = await fetch(`/api/user/frontier${search}`);
-            const data = await res.json();
-            if (data.status === 'ready' && !cancelled) {
-              const store = useOrcaStore.getState();
-              store.setFrontierNodes(data.frontierNodes || []);
-              store.setPerimeterData(data.perimeterData || []);
-              store.setAdventurousness(data.adventurousness || null);
-              store.setGeographicGaps(data.geographicGaps || []);
-            } else if (data.status === 'computing' && !cancelled) {
-              setTimeout(loadFrontier, 3000); // Poll again in 3 seconds
-            }
-          } catch (err) {
-            console.error('Progressive frontier load failed:', err);
-          }
-        };
-        loadFrontier();
+
 
         // Start progressive expansion after a short delay
         if (!cancelled) {
@@ -575,10 +685,17 @@ export function Orca() {
           pollInterval = setInterval(async () => {
             if (cancelled) return;
             try {
-              const res = await fetch(`/api/globe${search}`);
+              const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
+              const versionSuffix = `&version=${snapshotVersionRef.current}`;
+              const res = await fetch(`/api/globe${currentSearch ? `${currentSearch}${versionSuffix}` : `?${versionSuffix.slice(1)}`}`);
               if (!res.ok) return;
               const data = await res.json();
+              
               if (data.status === 'ready') {
+                if (data.upToDate) {
+                  return; // Up to date, no changes!
+                }
+
                 const currentStore = useOrcaStore.getState();
                 const currentGraph = currentStore.graph;
                 if (!currentGraph) return;
@@ -586,54 +703,96 @@ export function Orca() {
                 const newNodes = data.nodes || [];
                 const newEdges = data.edges || [];
                 const newGenres = data.genres || [];
+                const delta = data.worldDelta || { added: [], removed: [], changed: [] };
 
                 let graphChanged = false;
                 let layoutChanged = false;
                 const nodesToAdd: any[] = [];
                 const edgesToAdd: any[] = [];
 
-                // 1. Diff and update existing nodes, detect new nodes
-                newNodes.forEach((newNode: any) => {
-                  const existingNode = currentGraph.nodes.find(n => n.id === newNode.id);
-                  if (existingNode) {
-                    let nodeChanged = false;
-                    const scalarKeys = [
-                      'relationshipState', 'memoryStrength', 'isInActiveJourney', 'journeyRole',
-                      'weight', 'bridgeArtist', 'gatewayArtist', 'destinationArtist', 'alreadyIntegrated',
-                      'activeJourneyStep', 'recommendedNext', 'discoveredRecently', 'memoryContribution'
-                    ];
-                    const eNodeAny = existingNode as any;
-                    const nNodeAny = newNode as any;
-                    for (const k of scalarKeys) {
-                      if (eNodeAny[k] !== nNodeAny[k]) {
-                        eNodeAny[k] = nNodeAny[k];
-                        nodeChanged = true;
-                      }
-                    }
-                    if (newNode.availableActions) {
-                      if (!existingNode.availableActions) {
-                        existingNode.availableActions = { ...newNode.availableActions };
-                        nodeChanged = true;
-                      } else {
-                        const actionsKeys = ['canExplore', 'canSave', 'canListen'] as const;
-                        for (const k of actionsKeys) {
-                          if (existingNode.availableActions[k] !== newNode.availableActions[k]) {
-                            existingNode.availableActions[k] = newNode.availableActions[k];
+
+                  // 1. Process removed nodes
+                  if (delta.removed && delta.removed.length > 0) {
+                    const removedSet = new Set(delta.removed);
+                    currentGraph.nodes = currentGraph.nodes.filter(n => !removedSet.has(n.id));
+                    const updatedUniverse = (
+                      currentStore.frontierUniverse.length
+                        ? currentStore.frontierUniverse
+                        : currentStore.frontierNodes
+                    ).filter((n) => !removedSet.has(n.id));
+                    currentStore.setFrontierUniverse(updatedUniverse);
+                    graphChanged = true;
+                  }
+
+                  // 2. Process added and changed nodes
+                  newNodes.forEach((newNode: any) => {
+                    if (newNode.state === 'explored') {
+                      const existingNode = currentGraph.nodes.find(n => n.id === newNode.id);
+                      if (existingNode) {
+                        let nodeChanged = false;
+                        const scalarKeys = [
+                          'relationshipState', 'memoryStrength',
+                          'weight', 'bridgeArtist', 'gatewayArtist', 'destinationArtist', 'alreadyIntegrated',
+                          'recommendedNext', 'discoveredRecently', 'memoryContribution',
+                          'reachable', 'semanticRole', 'confidenceBand', 'reasoning',
+                          'audioSource', 'expansionDistance', 'expansionBand',
+                        ];
+                        const eNodeAny = existingNode as any;
+                        const nNodeAny = newNode as any;
+                        for (const k of scalarKeys) {
+                          if (eNodeAny[k] !== nNodeAny[k]) {
+                            eNodeAny[k] = nNodeAny[k];
                             nodeChanged = true;
                           }
                         }
+                        if (JSON.stringify(existingNode.availableActions) !== JSON.stringify(newNode.availableActions)) {
+                          existingNode.availableActions = newNode.availableActions;
+                          nodeChanged = true;
+                        }
+                        if (nodeChanged) graphChanged = true;
+                      } else {
+                        nodesToAdd.push(newNode);
+                        graphChanged = true;
+                        layoutChanged = true;
+                      }
+                    } else if (newNode.state === 'frontier') {
+                      const uni =
+                        currentStore.frontierUniverse.length > 0
+                          ? currentStore.frontierUniverse
+                          : currentStore.frontierNodes;
+                      const existingFrontier = uni.find((n) => n.id === newNode.id);
+                      if (existingFrontier) {
+                        let nodeChanged = false;
+                        const scalarKeys = [
+                          'relationshipState', 'memoryStrength',
+                          'weight', 'bridgeArtist', 'gatewayArtist', 'destinationArtist', 'alreadyIntegrated',
+                          'recommendedNext', 'discoveredRecently', 'memoryContribution',
+                          'reachable', 'semanticRole', 'confidenceBand', 'reasoning',
+                          'audioSource', 'expansionDistance', 'expansionBand',
+                        ];
+                        const eNodeAny = existingFrontier as any;
+                        const nNodeAny = newNode as any;
+                        for (const k of scalarKeys) {
+                          if (eNodeAny[k] !== nNodeAny[k]) {
+                            eNodeAny[k] = nNodeAny[k];
+                            nodeChanged = true;
+                          }
+                        }
+                        if (JSON.stringify(existingFrontier.availableActions) !== JSON.stringify(newNode.availableActions)) {
+                          existingFrontier.availableActions = newNode.availableActions;
+                          nodeChanged = true;
+                        }
+                        if (nodeChanged) {
+                          currentStore.setFrontierUniverse([...uni]);
+                        }
+                      } else {
+                        currentStore.setFrontierUniverse([...uni, newNode]);
                       }
                     }
-                    if (nodeChanged) graphChanged = true;
-                  } else {
-                    // New Node introduced (e.g. unknown genre/artist)
-                    nodesToAdd.push(newNode);
-                    graphChanged = true;
-                    layoutChanged = true;
-                  }
-                });
+                  });
 
-                // 2. Detect new edges
+
+                // 3. Detect new edges
                 newEdges.forEach((newEdge: any) => {
                   const srcId = typeof newEdge.source === 'string' ? newEdge.source : newEdge.source.id;
                   const tgtId = typeof newEdge.target === 'string' ? newEdge.target : newEdge.target.id;
@@ -648,7 +807,7 @@ export function Orca() {
                   }
                 });
 
-                // 3. Apply updates to layout if new nodes/edges added
+                // 4. Apply updates to layout if new nodes/edges added
                 if (layoutChanged && layoutRef.current && nodesToAdd.length > 0) {
                   layoutRef.current.addNodes(nodesToAdd, edgesToAdd);
                   // Warm up layout slightly for new nodes
@@ -658,7 +817,7 @@ export function Orca() {
                   currentStore.updatePositions(layoutRef.current.getPositions());
                 }
 
-                // 4. Merge genre states (GIA reference stable merge)
+                // 5. Merge genre states (GIA reference stable merge)
                 currentGraph.genres.forEach(region => {
                   const backendGenre = newGenres.find((g: any) => g.name.toLowerCase() === region.name.toLowerCase());
                   if (backendGenre) {
@@ -667,7 +826,12 @@ export function Orca() {
                   }
                 });
 
-                // 5. Trigger react updates
+                // 6. Update version ref
+                if (data.snapshotVersion !== undefined) {
+                  snapshotVersionRef.current = data.snapshotVersion;
+                }
+
+                // 7. Trigger react updates
                 if (graphChanged) {
                   currentStore.setGraph({ ...currentGraph });
                 }
@@ -717,8 +881,7 @@ export function Orca() {
             toneMappingExposure: 1.0,
             preserveDrawingBuffer: true,
           }}
-          style={{ background: 'transparent' }}
-
+          style={{ background: 'transparent', zIndex: 0 }}
         >
           <OrcaScene onImageResolved={onImageResolved} />
         </Canvas>

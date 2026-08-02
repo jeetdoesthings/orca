@@ -70,7 +70,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
   const activeVersion = maxVersionRecord?.version || 1;
 
   // 4. Fetch Territory Memberships
-  const artistIds = exploredNodes.map((n) => n.id);
+  const artistIds = exploredNodes.map((n: any) => n.id);
   const memberships = await prisma.territoryMembership.findMany({
     where: {
       artistId: { in: artistIds },
@@ -80,7 +80,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
 
   // Group memberships by ArtistId
   const artistMembershipsMap = new Map<string, typeof memberships>();
-  memberships.forEach((m) => {
+  memberships.forEach((m: any) => {
     const list = artistMembershipsMap.get(m.artistId) || [];
     list.push(m);
     artistMembershipsMap.set(m.artistId, list);
@@ -91,7 +91,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
   const rawMedium = new Map<string, number>();
   const rawLong = new Map<string, number>();
 
-  exploredNodes.forEach((node) => {
+  exploredNodes.forEach((node: any) => {
     const artistMems = artistMembershipsMap.get(node.id) || [];
     if (artistMems.length === 0) return;
 
@@ -100,7 +100,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
     const wMedium = node.weightMedium ?? node.weight ?? 0.1;
     const wLong = node.weightLong ?? node.weight ?? 0.1;
 
-    artistMems.forEach((m) => {
+    artistMems.forEach((m: any) => {
       const strength = m.membershipStrength;
       rawShort.set(m.territoryId, (rawShort.get(m.territoryId) || 0) + wShort * strength);
       rawMedium.set(m.territoryId, (rawMedium.get(m.territoryId) || 0) + wMedium * strength);
@@ -113,7 +113,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
     const sum = Array.from(raw.values()).reduce((a, b) => a + b, 0);
     const normalized = new Map<string, number>();
     if (sum > 0) {
-      raw.forEach((val, key) => normalized.set(key, val / sum));
+      raw.forEach((val: any, key: any) => normalized.set(key, val / sum));
     }
     return normalized;
   };
@@ -138,7 +138,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
 
   // Shannon Entropy
   let entropy = 0;
-  pValues.forEach((p) => {
+  pValues.forEach((p: any) => {
     if (p > 0) entropy -= p * Math.log(p);
   });
 
@@ -184,11 +184,11 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
   // 10. Compute & Persist Territory Adoption
   const exploredArtists = await prisma.exploredArtist.findMany({ where: { userId } });
   const exploredSourceMap = new Map<string, { source: string; lastExploredAt: Date }>();
-  exploredArtists.forEach((ea) => exploredSourceMap.set(ea.artistId, { source: ea.source, lastExploredAt: ea.lastExploredAt }));
+  exploredArtists.forEach((ea: any) => exploredSourceMap.set(ea.artistId, { source: ea.source, lastExploredAt: ea.lastExploredAt }));
 
   for (const tId of normMedium.keys()) {
     const artistsInTerritory = exploredNodes.filter((node) =>
-      memberships.some((m) => m.artistId === node.id && m.territoryId === tId)
+      memberships.some((m: any) => m.artistId === node.id && m.territoryId === tId)
     );
 
     // Filter to exploratory sources
@@ -205,7 +205,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
 
     // Find latest activity date
     let lastActivity = new Date(0);
-    exploredArtistsInTerritory.forEach((n) => {
+    exploredArtistsInTerritory.forEach((n: any) => {
       const info = exploredSourceMap.get(n.id);
       if (info && info.lastExploredAt > lastActivity) {
         lastActivity = info.lastExploredAt;
@@ -225,7 +225,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
   // 11. Compute & Persist Territory Familiarity
   for (const tId of normMedium.keys()) {
     const artistsInTerritory = exploredNodes.filter((node) =>
-      memberships.some((m) => m.artistId === node.id && m.territoryId === tId)
+      memberships.some((m: any) => m.artistId === node.id && m.territoryId === tId)
     );
     const uniqueArtistCount = artistsInTerritory.length;
     const totalWeight = artistsInTerritory.reduce((sum, n) => sum + (n.weightMedium ?? n.weight ?? 0.1), 0);
@@ -284,14 +284,14 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
   // 14. Explainability & Text Generation (Natural Language Narratives)
   const sortedOccupancies = Array.from(normMedium.entries()).sort((a, b) => b[1] - a[1]);
   const top2 = sortedOccupancies.slice(0, 2);
-  const top2Ids = top2.map((t) => t[0]);
+  const top2Ids = top2.map((t: any) => t[0]);
 
   const dbTerritories = await prisma.territory.findMany({
     where: { id: { in: top2Ids } },
   });
 
   const nameMap = new Map<string, string>();
-  dbTerritories.forEach((t) => {
+  dbTerritories.forEach((t: any) => {
     try {
       const meta = JSON.parse(t.metadata || '{}');
       nameMap.set(t.id, meta.displayName || t.id);
@@ -300,7 +300,7 @@ export async function computeUserTerritoryMapping(userId: string): Promise<UserT
     }
   });
 
-  const names = top2.map((t) => nameMap.get(t[0]) || t[0]);
+  const names = top2.map((t: any) => nameMap.get(t[0]) || t[0]);
   let shortSummary = 'Your taste profile is still forming — keep listening.';
   if (names.length === 1) {
     shortSummary = `Your taste is distinctly rooted in the "${names[0]}" territory.`;

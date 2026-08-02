@@ -6,6 +6,8 @@ import { computeUserProfile } from '@/lib/profile/profile-engine';
 import type { UserProfile } from '@/lib/profile/types';
 import { processArtistLatentRepresentation, seedTraitDefinitions } from '@/lib/latent/latent-space';
 import { computeUserTerritoryMapping } from '@/lib/profile/territory-mapping';
+import { resolveAudioSignature, isRealAudio } from '@/lib/audio/resolve-signature';
+import { resolveArtistRealAudio } from '@/lib/audio/embedding-cache';
 
 const R = 1.65;
 
@@ -24,16 +26,6 @@ interface SpotifyTrack {
   album: {
     images: Array<{ url: string; width?: number }>;
   };
-}
-
-interface AudioFeatures {
-  id: string;
-  valence: number;
-  energy: number;
-  acousticness: number;
-  danceability: number;
-  instrumentalness: number;
-  tempo: number;
 }
 
 interface SpotifyProfile {
@@ -150,25 +142,12 @@ async function fetchSavedTracks(token: string, limit = 200): Promise<SpotifyTrac
   return tracks.slice(0, limit);
 }
 
-async function fetchAudioFeaturesBatch(token: string, trackIds: string[]): Promise<AudioFeatures[]> {
-  const features: AudioFeatures[] = [];
-  const batchSize = 100;
-
-  for (let i = 0; i < trackIds.length; i += batchSize) {
-    const batch = trackIds.slice(i, i + batchSize);
-    try {
-      const data = await spotifyFetch(`/audio-features?ids=${batch.join(',')}`, token);
-      features.push(...(data.audio_features || []).filter(Boolean));
-    } catch (err) {
-      console.error(`[Spotify Sync] Error fetching audio features batch ${i}:`, err);
-    }
-    if (i + batchSize < trackIds.length) {
-      await new Promise(resolve => setTimeout(resolve, 100)); // sleep 100ms
-    }
-  }
-
-  return features;
-}
+// REMOVED (ORCA Backend Fix Part 1 — 2026):
+// Spotify GET /v1/audio-features is permanently restricted for new developer
+// apps (2024-11-27) and closed for existing apps (2026-03-09). Do NOT re-add
+// fetchAudioFeaturesBatch or any /audio-features call. Acoustic distance uses
+// Tier-1 Deezer preview + embedding cache (src/lib/audio/*) instead.
+// Identity still uses Spotify for the user's own listening history only.
 
 interface DecomposedWeight {
   frequencyScore: number;
@@ -237,47 +216,59 @@ function computeArtistWeight(input: {
   return Math.max(0.05, Math.min(score / 100, 1.0));
 }
 
-// Compute average audio features for an artist across their tracks
-function computeArtistAudioFeatures(
-  features: AudioFeatures[],
-  recent: SpotifyTrack[],
-  saved: SpotifyTrack[]
-): Map<string, AudioSignature> {
-  const trackToArtist = new Map<string, string>();
-  [...recent, ...saved].forEach(track => {
-    const artistId = track.artists[0]?.id;
-    if (artistId) trackToArtist.set(track.id, artistId);
-  });
+/**
+ * Part 1: write real_audio signatures into Artist.metadata so the frontier
+ * path can reuse Tier-1 embeddings. Merges into existing metadata JSON so
+ * ORE retrieval fields survive.
+ */
+async function persistRealAudioSignatures(nodes: OrcaNode[]): Promise<void> {
+  const realNodes = nodes.filter(
+    (n) => isRealAudio(n.audioSource ?? n.confidenceTag) && n.audioSignature,
+  );
+  if (realNodes.length === 0) return;
 
-  const artistFeatures = new Map<string, AudioFeatures[]>();
-  features.forEach(feat => {
-    if (!feat) return;
-    const artistId = trackToArtist.get(feat.id);
-    if (!artistId) return;
-    const existing = artistFeatures.get(artistId) || [];
-    artistFeatures.set(artistId, [...existing, feat]);
-  });
-
-  const averages = new Map<string, AudioSignature>();
-  artistFeatures.forEach((feats, artistId) => {
-    const count = feats.length;
-    averages.set(artistId, {
-      valence: feats.reduce((s, f) => s + f.valence, 0) / count,
-      energy: feats.reduce((s, f) => s + f.energy, 0) / count,
-      acousticness: feats.reduce((s, f) => s + f.acousticness, 0) / count,
-      danceability: feats.reduce((s, f) => s + f.danceability, 0) / count,
-      instrumentalness: feats.reduce((s, f) => s + f.instrumentalness, 0) / count,
-      tempo: feats.reduce((s, f) => s + f.tempo, 0) / count,
-    });
-  });
-
-  return averages;
+  await Promise.allSettled(
+    realNodes.map(async (node) => {
+      try {
+        const existing = await prisma.artist.findUnique({
+          where: { id: node.id },
+          select: { metadata: true },
+        });
+        let meta: Record<string, unknown> = {};
+        if (existing?.metadata) {
+          try {
+            meta = JSON.parse(existing.metadata) as Record<string, unknown>;
+          } catch {
+            meta = {};
+          }
+        }
+        meta.audioSignature = node.audioSignature;
+        meta.audioSource = 'real_audio';
+        meta.confidenceTag = 'real_audio';
+        await prisma.artist.upsert({
+          where: { id: node.id },
+          update: { metadata: JSON.stringify(meta) },
+          create: {
+            id: node.id,
+            spotifyId: node.id,
+            displayName: node.name,
+            normalizedName: node.name.toLowerCase().trim(),
+            rawGenres: JSON.stringify(node.genres || []),
+            popularity: node.popularity || 50,
+            followers: 0,
+            imageUrl: node.imageUrl || null,
+            metadata: JSON.stringify(meta),
+          },
+        });
+      } catch (err) {
+        console.warn(`[Spotify Sync] Failed to persist real_audio for ${node.id}:`, err);
+      }
+    }),
+  );
 }
 
-
-
 // Compute the user's primary taste centroid (HomeRegion)
-function computeHomeRegion(nodes: OrcaNode[]): { lat: number; lng: number; label: string; spread: number } {
+export function computeHomeRegion(nodes: OrcaNode[]): { lat: number; lng: number; label: string; spread: number } {
   if (nodes.length === 0) return { lat: 0, lng: 0, label: 'Pop', spread: 0 };
 
   let totalWeight = 0;
@@ -348,7 +339,7 @@ function computeHomeRegion(nodes: OrcaNode[]): { lat: number; lng: number; label
 }
 
 // Generate the beautiful narrative taste summary sentence
-function generateTasteSummary(nodes: OrcaNode[]): string {
+export function generateTasteSummary(nodes: OrcaNode[]): string {
   const nodeCount = nodes.length;
   const genres = new Set(nodes.map(n => n.genres[0] || 'pop'));
   const uniqueGenresCount = genres.size;
@@ -357,7 +348,7 @@ function generateTasteSummary(nodes: OrcaNode[]): string {
 }
 
 // Build edges between user artists based on genre overlap and audio similarity
-function buildSpotifyEdges(nodes: OrcaNode[]): OrcaEdge[] {
+export function buildSpotifyEdges(nodes: OrcaNode[]): OrcaEdge[] {
   const edges: OrcaEdge[] = [];
   const edgeSet = new Set<string>();
 
@@ -368,43 +359,39 @@ function buildSpotifyEdges(nodes: OrcaNode[]): OrcaEdge[] {
     edges.push({ source: src, target: tgt, type, weight: w });
   };
 
-  // 1. Genre-based connection
+  // 1. Same-genre ring: each node → up to 2 peers in normalised genre (not full clique)
   const byGenre = new Map<string, OrcaNode[]>();
-  nodes.forEach(node => {
-    const primary = node.genres[0] || 'pop';
+  nodes.forEach((node) => {
+    const primary = normaliseGenre(node.genres?.length ? node.genres : ['pop']);
     if (!byGenre.has(primary)) byGenre.set(primary, []);
     byGenre.get(primary)!.push(node);
   });
 
-  byGenre.forEach(genreNodes => {
+  byGenre.forEach((genreNodes) => {
+    if (genreNodes.length < 2) return;
     for (let i = 0; i < genreNodes.length; i++) {
-      // Connect each node to up to 2 other nodes in the same genre
-      for (let j = 1; j <= 2; j++) {
+      for (let j = 1; j <= Math.min(2, genreNodes.length - 1); j++) {
         const targetNode = genreNodes[(i + j) % genreNodes.length];
-        if (targetNode) {
-          addEdge(genreNodes[i].id, targetNode.id, 'genre', 0.6);
+        if (targetNode && targetNode.id !== genreNodes[i].id) {
+          addEdge(genreNodes[i].id, targetNode.id, 'genre', 0.5);
         }
       }
     }
   });
 
-  // 2. Audio similarity-based connection
-  // Connect each artist to their absolute top audio similar artist
+  // 2. Each artist → top-K audio-similar only (never fully mesh — that collapses layout)
+  const K = 2;
   for (let i = 0; i < nodes.length; i++) {
-    let bestSim = -1;
-    let bestIdx = -1;
-
+    if (!nodes[i].audioSignature) continue;
+    const scored: { j: number; sim: number }[] = [];
     for (let j = 0; j < nodes.length; j++) {
-      if (i === j) continue;
-      const sim = audioCosineSimilarity(nodes[i].audioSignature, nodes[j].audioSignature);
-      if (sim > bestSim) {
-        bestSim = sim;
-        bestIdx = j;
-      }
+      if (i === j || !nodes[j].audioSignature) continue;
+      const sim = audioCosineSimilarity(nodes[i].audioSignature!, nodes[j].audioSignature!);
+      if (sim > 0.55) scored.push({ j, sim });
     }
-
-    if (bestIdx !== -1 && bestSim > 0.8) {
-      addEdge(nodes[i].id, nodes[bestIdx].id, 'audio-similar', bestSim);
+    scored.sort((a, b) => b.sim - a.sim);
+    for (const s of scored.slice(0, K)) {
+      addEdge(nodes[i].id, nodes[s.j].id, 'audio-similar', s.sim);
     }
   }
 
@@ -606,14 +593,8 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
       }));
     }
 
-    // Build unique track IDs list to query audio features
-    const allTrackIds = Array.from(
-      new Set([...recentTracks.map(t => t.id), ...savedTracks.map(t => t.id)])
-    ).slice(0, 500);
-
-    const audioFeatures = await fetchAudioFeaturesBatch(accessToken, allTrackIds);
-
     // Prepare helper maps for computing weights
+    // (Part 1: no Spotify /audio-features — Tier-1 embeddings applied below.)
     const shortRanks = new Map(topArtistsShort.map((a, i) => [a.id, i + 1]));
     const mediumRanks = new Map(topArtistsMedium.map((a, i) => [a.id, i + 1]));
     const longRanks = new Map(topArtistsLong.map((a, i) => [a.id, i + 1]));
@@ -630,9 +611,7 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
       if (aId) savedTrackCounts.set(aId, (savedTrackCounts.get(aId) || 0) + 1);
     });
 
-    const artistAverages = computeArtistAudioFeatures(audioFeatures, recentTracks, savedTracks);
-
-    // Build the processed nodes list
+    // Build the processed nodes list (tag_inferred first; Tier-1 fill next).
     const nodes: OrcaNode[] = rawArtists.map(artist => {
       const decomp = decomposeArtistWeight({
         topRankShort: shortRanks.get(artist.id) ?? null,
@@ -644,44 +623,40 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
       const weight = decomp.weightMedium;
 
       const normalisedGenre = normaliseGenre(artist.genres);
-      
-      const imageUrl = artist.images?.[1]?.url ?? artist.images?.[0]?.url ?? '';
 
-      // Set average audio features or construct a seeded mock signature
-      const avgFeat = artistAverages.get(artist.id);
-      let signature: AudioSignature;
-      if (avgFeat) {
-        signature = avgFeat;
-      } else {
-        const hash = artist.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const factor = (hash % 100) / 100;
-        const normGenre = normalisedGenre.toLowerCase();
-        const isPop = normGenre.includes('pop') || normGenre.includes('dance');
-        const isRock = normGenre.includes('rock') || normGenre.includes('metal') || normGenre.includes('punk');
-        const isAcoustic = normGenre.includes('folk') || normGenre.includes('country') || normGenre.includes('classical') || normGenre.includes('jazz');
-        
-        signature = {
-          energy: Math.max(0.1, Math.min(0.99, 0.45 + factor * 0.3 + (isRock ? 0.25 : 0) - (isAcoustic ? 0.2 : 0))),
-          valence: Math.max(0.1, Math.min(0.99, 0.5 + factor * 0.25 + (isPop ? 0.2 : 0))),
-          danceability: Math.max(0.1, Math.min(0.99, 0.4 + factor * 0.3 + (isPop ? 0.35 : 0))),
-          acousticness: Math.max(0.01, Math.min(0.99, 0.2 + factor * 0.2 + (isAcoustic ? 0.55 : 0) - (isRock ? 0.15 : 0))),
-          instrumentalness: Math.max(0.01, Math.min(0.99, 0.1 + factor * 0.2 + (normGenre.includes('ambient') ? 0.65 : 0))),
-          tempo: Math.round(75 + factor * 80 + (isPop ? 25 : 0)),
-        };
-      }
+      // Prefer largest Spotify image (images[0]); fall back to smaller sizes.
+      const imageUrl =
+        artist.images?.[0]?.url ?? artist.images?.[1]?.url ?? artist.images?.[2]?.url ?? '';
+
+      // Part 1: default to tag_inferred (genre/hash). real_audio only after Tier-1 embed.
+      const { signature, source: audioSource, confidenceTag } = resolveAudioSignature({
+        artistId: artist.id,
+        genres: (artist.genres && artist.genres.length > 0) ? artist.genres : [normalisedGenre],
+        real: null,
+      });
 
       // Coordinate seeding: place deterministic points using GENRE_ANCHORS
       const [x, y, z] = computeNodeCoords(artist.id, normalisedGenre, weight);
 
+      const rawGenres =
+        artist.genres && artist.genres.length > 0 ? artist.genres : [normalisedGenre];
+      // Primary InternalGenre first so globe seed + layout never clump on raw tags.
+      const genresPrimaryFirst = [
+        normalisedGenre,
+        ...rawGenres.filter((g) => normaliseGenre([g]) !== normalisedGenre),
+      ];
+
       return {
         id: artist.id,
         name: artist.name,
-        genres: (artist.genres && artist.genres.length > 0) ? artist.genres : [normalisedGenre],
+        genres: genresPrimaryFirst,
         popularity: artist.popularity || 50,
         imageUrl,
         weight,
-        state: 'explored',
+        state: 'explored' as const,
         audioSignature: signature,
+        audioSource,
+        confidenceTag,
         x,
         y,
         z,
@@ -693,6 +668,74 @@ export async function processAndStoreUserData(accessToken: string, userId: strin
         persistenceScore: decomp.persistenceScore,
       };
     });
+
+    // Tier-1 (optional): Deezer preview → embedding for top-weighted artists.
+    // Gated by ORCA_EMBEDDING_URL or ORCA_EMBEDDING_ALLOW_MOCK; never invents real_audio.
+    {
+      const ranked = [...nodes].sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
+      const tier1Cap = Math.min(15, ranked.length);
+      for (let i = 0; i < tier1Cap; i += 3) {
+        const batch = ranked.slice(i, i + 3);
+        await Promise.all(
+          batch.map(async (n) => {
+            try {
+              const real = await resolveArtistRealAudio({
+                artistId: n.id,
+                artistName: n.name,
+              });
+              if (real) {
+                n.audioSignature = real.signature;
+                n.audioSource = 'real_audio';
+                n.confidenceTag = 'real_audio';
+              }
+            } catch (err) {
+              console.warn(`[Spotify Sync] Tier-1 embed skipped for ${n.name}:`, err);
+            }
+          }),
+        );
+      }
+    }
+
+    // Multi-provider fill for empty genres or weak images (Last.fm / Deezer / MB / Wiki).
+    // Spotify is primary; this covers long-tail artists Spotify returns without genres.
+    {
+      const { enrichArtistIdentity, isWeakImageUrl } = await import(
+        '@/lib/artists/enrich-identity'
+      );
+      const needEnrich = nodes.filter(
+        (n) =>
+          !n.genres?.length ||
+          (n.genres.length === 1 && n.genres[0] === normaliseGenre([])) ||
+          isWeakImageUrl(n.imageUrl),
+      );
+      // Cap to avoid blocking sync for huge libraries
+      const cap = needEnrich.slice(0, 40);
+      for (let i = 0; i < cap.length; i += 5) {
+        const batch = cap.slice(i, i + 5);
+        await Promise.all(
+          batch.map(async (n) => {
+            try {
+              const enr = await enrichArtistIdentity({
+                name: n.name,
+                spotifyId: n.id,
+                genres: n.genres,
+                imageUrl: n.imageUrl,
+                popularity: n.popularity,
+              });
+              if (enr.genres.length > 0) n.genres = enr.genres;
+              if (enr.imageUrl && isWeakImageUrl(n.imageUrl)) n.imageUrl = enr.imageUrl;
+              if (enr.popularity) n.popularity = enr.popularity;
+            } catch (err) {
+              console.warn(`[Spotify Sync] enrich failed for ${n.name}:`, err);
+            }
+          }),
+        );
+      }
+    }
+
+    // Persist real_audio signatures onto Artist.metadata so frontier Expansion
+    // Intelligence can prefer them over tag_inferred (Part 1). Non-blocking.
+    void persistRealAudioSignatures(nodes);
 
     // Build edges
     const edges = buildSpotifyEdges(nodes);

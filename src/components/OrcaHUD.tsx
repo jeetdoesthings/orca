@@ -10,7 +10,15 @@ import { getGenreColor, normaliseGenre } from '@/lib/graph/genre-normaliser';
 import { useObservationStore } from '@/store/feedback';
 import { getCachedArtistData } from './orca/ArtistImageLayer';
 import type { OrcaNode } from '@/lib/graph/types';
-import { FrontierPanel } from './orca/FrontierPanel';
+import {
+  bucketToExplorationDepth,
+  explorationDepthToBucket,
+  type ExplorationDepthId,
+} from '@/lib/config/world';
+import { ExpansionPanel } from './orca/ExpansionPanel';
+import { DepthControl } from './orca/DepthControl';
+import { GlobeStats } from './orca/GlobeStats';
+import { LeapFallbackBanner } from './orca/LeapFallbackBanner';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 
@@ -174,12 +182,107 @@ export function OrcaHUD() {
   const setFrontierPanelOpen = useOrcaStore(s => s.setFrontierPanelOpen);
   const setFocusedNode = useOrcaStore(s => s.setFocusedNode);
   const setPinnedNode = useOrcaStore(s => s.setPinnedNode);
+  const frontierNodes = useOrcaStore((s) => s.frontierNodes);
+  const frontierUniverse = useOrcaStore((s) => s.frontierUniverse);
+  const activeDepth = useOrcaStore((s) => s.explorationDepth);
+  const setExplorationDepth = useOrcaStore((s) => s.setExplorationDepth);
+  const setFrontierUniverse = useOrcaStore((s) => s.setFrontierUniverse);
+  const leapBucketFallback = useOrcaStore((s) => s.leapBucketFallback);
+  const shoreBucketFallback = useOrcaStore((s) => s.shoreBucketFallback);
+  const distanceVarianceCollapsed = useOrcaStore(
+    (s) => s.distanceVarianceCollapsed,
+  );
+  const storeRecommendedTier = useOrcaStore((s) => s.recommendedTier);
+
+  const DEPTH_ORDER: ExplorationDepthId[] = [
+    'close',
+    'far',
+    'farther',
+    'all',
+  ];
+
+  function parseDepthParam(raw: string | null): ExplorationDepthId | null {
+    if (!raw) return null;
+    if ((DEPTH_ORDER as string[]).includes(raw)) return raw as ExplorationDepthId;
+    if (raw === 'comfort') return 'close';
+    if (raw === 'expansion') return 'far';
+    if (raw === 'leap') return 'farther';
+    if (raw === 'all') return 'all';
+    // Legacy URL params
+    if (raw === 'shore') return 'close';
+    if (raw === 'shallow') return 'far';
+    if (raw === 'deep') return 'farther';
+    if (raw === 'alo') return 'all';
+    return null;
+  }
+
+  // URL / recommended default depth (once universe is ready)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl =
+      parseDepthParam(params.get('depth')) ||
+      parseDepthParam(params.get('tier'));
+    if (fromUrl) {
+      setExplorationDepth(fromUrl);
+      return;
+    }
+    if (storeRecommendedTier) {
+      setExplorationDepth(bucketToExplorationDepth(storeRecommendedTier));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeRecommendedTier, frontierUniverse.length]);
+
+  // Repair distances on first universe load so bands are exclusive
+  useEffect(() => {
+    if (frontierUniverse.length === 0) return;
+    (async () => {
+      const { prepareFrontierForDisplay } = await import(
+        '@/lib/frontier/prepare-frontier'
+      );
+      const { nodes: prepared } = prepareFrontierForDisplay(frontierUniverse);
+      // Only rewrite if distances were repaired
+      const changed = prepared.some(
+        (n, i) => n.expansionDistance !== frontierUniverse[i]?.expansionDistance,
+      );
+      if (changed) setFrontierUniverse(prepared);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frontierUniverse.length]);
+
+  const applyDepth = (depth: ExplorationDepthId) => {
+    setExplorationDepth(depth);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('depth', depth);
+      url.searchParams.delete('tier');
+      url.searchParams.delete('slider');
+      window.history.replaceState({}, '', url.toString());
+    }
+    const bucket = explorationDepthToBucket(depth);
+    if (bucket) {
+      void fetch('/api/user/readiness-override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: bucket }),
+      }).catch(() => {});
+    }
+  };
+
+  const cycleDepth = (e?: {
+    preventDefault?: () => void;
+    stopPropagation?: () => void;
+  }) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    const idx = DEPTH_ORDER.indexOf(activeDepth);
+    const next = DEPTH_ORDER[(Math.max(0, idx) + 1) % DEPTH_ORDER.length];
+    applyDepth(next);
+  };
   
   // Globe Controls (Phase 3.5)
-  const showJourney = useOrcaStore(s => s.showJourney);
   const showHistory = useOrcaStore(s => s.showHistory);
   const relationshipFilter = useOrcaStore(s => s.relationshipFilter);
-  const setShowJourney = useOrcaStore(s => s.setShowJourney);
   const setShowHistory = useOrcaStore(s => s.setShowHistory);
   const setRelationshipFilter = useOrcaStore(s => s.setRelationshipFilter);
   
@@ -206,6 +309,8 @@ export function OrcaHUD() {
   const transitionNodeToExplored = useOrcaStore(s => s.transitionNodeToExplored);
   const revertNodeTransition = useOrcaStore(s => s.revertNodeTransition);
 
+
+
   async function handleExploreFrontier(node: OrcaNode, action: 'add-to-spotify' | 'mark-explored') {
     if (exploreStatus !== 'idle') return;
     setExploreStatus('adding');
@@ -214,8 +319,8 @@ export function OrcaHUD() {
     transitionNodeToExplored(node.id);
     
     if (action === 'add-to-spotify') {
-      // Open Spotify tab
-      window.open(`https://open.spotify.com/artist/${node.id}`, '_blank');
+      // Open Spotify Search tab with the artist name
+      window.open(`https://open.spotify.com/search/${encodeURIComponent(node.name)}`, '_blank');
     }
 
     try {
@@ -229,6 +334,21 @@ export function OrcaHUD() {
       if (!res.ok) throw new Error('API exploration failed');
 
       setExploreStatus('done');
+
+      // Add a client-side observation notification
+      useObservationStore.getState().addObservation({
+        id: `obs_explored_${node.id}_${Date.now()}`,
+        type: 'ArtistExplored',
+        summary: `Explored ${node.name}`,
+        detail: `Successfully added ${node.name} to your taste graph.`,
+        priority: 2,
+        confidence: 1.0,
+        timestamp: new Date().toISOString(),
+        relatedEntities: { artistId: node.id },
+        availableActions: [],
+        ttl: 1800,
+        status: 'active'
+      });
     } catch (err) {
       console.error('[HUD Explore] Exploration failed, reverting:', err);
       revertNodeTransition(node.id);
@@ -236,99 +356,11 @@ export function OrcaHUD() {
     }
   }
 
-  const [followStatus, setFollowStatus] = useState<'idle' | 'loading' | 'done'>('idle');
-  const [ignoreStatus, setIgnoreStatus] = useState<'idle' | 'loading' | 'done'>('idle');
-  const [journeyStatus, setJourneyStatus] = useState<'idle' | 'loading' | 'done'>('idle');
 
-  async function handleFollowArtist(artistId: string, action: 'follow' | 'unfollow') {
-    if (followStatus !== 'idle') return;
-    setFollowStatus('loading');
-    
-    // Optimistic UI update
-    if (pinnedNode) {
-      pinnedNode.availableActions = {
-        ...pinnedNode.availableActions,
-        canExplore: action === 'unfollow',
-        canSave: true,
-        canListen: true
-      } as any;
-    }
-
-    try {
-      const search = typeof window !== 'undefined' ? window.location.search : '';
-      const res = await fetch(`/api/artist/${artistId}/${action}${search}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Failed');
-      setFollowStatus('done');
-      setTimeout(() => setFollowStatus('idle'), 2000);
-    } catch (err) {
-      console.error(err);
-      setFollowStatus('idle');
-    }
-  }
-
-  async function handleIgnoreArtist(artistId: string) {
-    if (ignoreStatus !== 'idle') return;
-    setIgnoreStatus('loading');
-
-    // Optimistic UI
-    const prevIntegrated = pinnedNode?.alreadyIntegrated;
-    if (pinnedNode) {
-      pinnedNode.alreadyIntegrated = false;
-    }
-
-    try {
-      const search = typeof window !== 'undefined' ? window.location.search : '';
-      const res = await fetch(`/api/artist/${artistId}/ignore${search}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Failed');
-      setIgnoreStatus('done');
-      setTimeout(() => setIgnoreStatus('idle'), 2000);
-    } catch (err) {
-      console.error(err);
-      if (pinnedNode) pinnedNode.alreadyIntegrated = prevIntegrated;
-      setIgnoreStatus('idle');
-    }
-  }
-
-  async function handleJourneyAction(genreName: string, action: 'start' | 'continue' | 'cancel', journeyId?: string) {
-    if (journeyStatus !== 'idle') return;
-    setJourneyStatus('loading');
-
-    try {
-      const search = typeof window !== 'undefined' ? window.location.search : '';
-      let res;
-      if (action === 'start') {
-        res = await fetch(`/api/journeys${search}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationGenreId: genreName })
-        });
-      } else {
-        res = await fetch(`/api/journeys/${journeyId}/${action}${search}`, { method: 'POST' });
-      }
-
-      if (!res.ok) throw new Error('Failed');
-      
-      // Force sync update immediately
-      const globeRes = await fetch(`/api/globe${search}`);
-      if (globeRes.ok) {
-        const globeData = await globeRes.json();
-        if (globeData.status === 'ready') {
-          useOrcaStore.getState().setGraph({ ...globeData });
-        }
-      }
-
-      setJourneyStatus('done');
-      setTimeout(() => setJourneyStatus('idle'), 2000);
-    } catch (err) {
-      console.error(err);
-      setJourneyStatus('idle');
-    }
-  }
-
-  const frontierNodes = useOrcaStore(s => s.frontierNodes);
-  const edgeCount = graph?.edges.length ?? 0;
   const exploredCount = graph?.nodes.filter(n => n.state === 'explored').length ?? 0;
+  // Visible at current depth (not full universe)
   const frontierCount = frontierNodes.length;
+  const frontierTotal = frontierUniverse.length;
   const normalizedQuery = query.trim().toLowerCase();
 
   const matches = useMemo(() => {
@@ -353,23 +385,31 @@ export function OrcaHUD() {
     return graph.nodes.find(n => n.id === pinnedNodeId) || frontierNodes.find(n => n.id === pinnedNodeId) || null;
   }, [pinnedNodeId, graph, frontierNodes]);
 
+  // Reset explore status to idle when pinnedNode changes so other cards don't show "Explored!"
+  useEffect(() => {
+    setExploreStatus('idle');
+  }, [pinnedNodeId]);
+
   const adjacentExplored = useMemo(() => {
     if (!pinnedNode || !graph || pinnedNode.state !== 'frontier') return [];
 
-    // Use real adjacentTo data if available (stored on frontier nodes)
+    // Real seed links (same as edges) — why this unexplored node is here
     if (pinnedNode.adjacentTo && pinnedNode.adjacentTo.length > 0) {
       return pinnedNode.adjacentTo
-        .map(id => graph.nodes.find(n => n.id === id))
+        .map((id) => graph.nodes.find((n) => n.id === id))
         .filter((n): n is typeof graph.nodes[number] => n != null)
-        .slice(0, 3);
+        .slice(0, 7);
     }
 
     // Fallback for legacy frontier data without adjacentTo
     const primaryGenre = normaliseGenre(pinnedNode.genres);
-    return graph.nodes.filter(n =>
-      n.state === 'explored' &&
-      normaliseGenre(n.genres) === primaryGenre
-    ).slice(0, 3);
+    return graph.nodes
+      .filter(
+        (n) =>
+          n.state === 'explored' &&
+          normaliseGenre(n.genres) === primaryGenre,
+      )
+      .slice(0, 5);
   }, [pinnedNode, graph]);
 
   // ── Render-time State Synchronization ──
@@ -733,11 +773,18 @@ export function OrcaHUD() {
 
 
 
-      {/* Node count — bottom left */}
-      <div className="orca-stats">
-        <div>{exploredCount} explored · {frontierCount} unexplored</div>
-        <div>{edgeCount} connections</div>
-      </div>
+      <GlobeStats
+        hasGraph={!!graph}
+        artistCount={graph?.nodes.length ?? 0}
+        territoryCount={
+          graph
+            ? new Set(graph.nodes.map((n) => n.genres[0] || 'pop')).size
+            : 0
+        }
+        exploredCount={exploredCount}
+        unexploredCount={frontierTotal}
+        tasteSummary={tasteSummary}
+      />
 
       {/* Expansion indicator */}
       {isExpanding && (
@@ -871,11 +918,48 @@ export function OrcaHUD() {
                     letterSpacing: '0.06em',
                     textTransform: 'uppercase'
                   }}>
-                    Unexplored Artist
+                    Expand Your Musical Identity
                   </div>
 
-                  {adjacentExplored.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {/* Leap-seek: territory-far narrative (Component 4) */}
+                  {pinnedNode.retrievalPath === 'leap_seek' &&
+                    pinnedNode.sourceTerritory && (
+                      <div
+                        style={{
+                          fontSize: isMobile ? '12px' : '13px',
+                          color: 'rgba(0,0,0,0.55)',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        Because{' '}
+                        <span style={{ fontWeight: 650, color: '#111118' }}>
+                          {(pinnedNode.sourceTerritory || '').replace(/-/g, ' ')}
+                        </span>{' '}
+                        sits far from your home territory
+                      </div>
+                    )}
+
+                  {pinnedNode.retrievalPath !== 'leap_seek' &&
+                    adjacentExplored.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div
+                        style={{
+                          fontSize: isMobile ? '12px' : '13px',
+                          color: 'rgba(0,0,0,0.55)',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        Because you know{' '}
+                        <span style={{ fontWeight: 650, color: '#111118' }}>
+                          {adjacentExplored
+                            .slice(0, 2)
+                            .map((a) => a.name)
+                            .join(' & ')}
+                        </span>
+                        {adjacentExplored.length > 2
+                          ? ` and ${adjacentExplored.length - 2} more`
+                          : ''}
+                      </div>
                       <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Connected through
                       </div>
@@ -889,23 +973,30 @@ export function OrcaHUD() {
 
                   <div style={{ fontSize: isMobile ? '11px' : '13px', color: 'rgba(0,0,0,0.55)', lineHeight: '1.4', whiteSpace: 'normal' }}>
                     {(() => {
+                      // Leap-seek specific copy first
+                      if (
+                        pinnedNode.retrievalPath === 'leap_seek' &&
+                        pinnedNode.sourceTerritory
+                      ) {
+                        const terr = pinnedNode.sourceTerritory.replace(/-/g, ' ');
+                        return `${pinnedNode.name} is a way into ${terr}, territory well outside your usual map. Explore to open that region.`;
+                      }
+
                       const genre = (pinnedNode.genres[0] || '').replace(/-/g, ' ');
                       const nameHash = getHash(pinnedNode.id);
                       const connCount = adjacentExplored.length;
-                      const sig = pinnedNode.audioSignature;
-                      const isHighEnergy = sig && sig.energy > 0.7;
-                      const isLowEnergy = sig && sig.energy < 0.35;
-                      const isAcoustic = sig && sig.acousticness > 0.5;
-                      const isDanceable = sig && sig.danceability > 0.7;
+                      const band = pinnedNode.expansionBand;
+                      const dist = pinnedNode.expansionDistance;
+                      const path = pinnedNode.retrievalPath;
 
                       const templates: string[] = [];
 
-                      // Genre-aware templates
+                      // Territory / genre framing (no sonic claims — four-axis model)
                       if (genre) {
                         templates.push(
-                          `A fresh voice in the ${genre} space sitting right at the edge of your catalog. Explore to expand your ${genre} territory.`,
-                          `Your ${genre} constellation has a gap — ${pinnedNode.name} could be the missing link. Tap explore to pull them in.`,
-                          `Closely orbiting your ${genre} cluster, ${pinnedNode.name} shares DNA with artists you already love.`,
+                          `A fresh voice in the ${genre} territory sitting at the edge of your map. Explore to expand that region.`,
+                          `Your ${genre} constellation has a gap. ${pinnedNode.name} could be the missing link. Tap explore to pull them in.`,
+                          `Closely orbiting your ${genre} cluster, ${pinnedNode.name} shares territory with artists you already know.`,
                         );
                       }
 
@@ -913,39 +1004,43 @@ export function OrcaHUD() {
                       if (connCount >= 3) {
                         templates.push(
                           `Strongly connected to multiple artists in your universe — ${pinnedNode.name} is a natural next addition.`,
-                          `Multiple threads tie ${pinnedNode.name} to your existing world. This is a high-confidence journey.`,
+                          `Multiple threads tie ${pinnedNode.name} to your existing world. This is a high-confidence taste expansion.`,
                         );
                       } else if (connCount === 1) {
                         templates.push(
-                          `A single thread connects ${pinnedNode.name} to your universe — exploring could open up an entirely new sonic branch.`,
+                          `A single thread connects ${pinnedNode.name} to your universe — exploring could open an entirely new scene.`,
                           `${pinnedNode.name} is tethered by one connection. This could be the start of something unexpected.`,
                         );
                       } else if (connCount === 2) {
                         templates.push(
-                          `Two paths lead to ${pinnedNode.name} from your explored territory — a solid bridge to new sounds.`,
+                          `Two paths lead to ${pinnedNode.name} from your explored territory — a solid bridge to new scenes.`,
                           `${pinnedNode.name} sits at the intersection of two artists you know. A natural discovery.`,
                         );
                       }
 
-                      // Audio-signature-aware templates
-                      if (isHighEnergy) {
+                      // Distance / era / scene framing (metadata axes only)
+                      if (path === 'shore_seek') {
                         templates.push(
-                          `${pinnedNode.name} brings an explosive energy that could supercharge your collection. Hit explore to feel the heat.`,
+                          `${pinnedNode.name} is a deep cut within territory you already know — close to home, not yet on your map.`,
                         );
                       }
-                      if (isLowEnergy) {
+                      if (path === 'leap_seek') {
                         templates.push(
-                          `${pinnedNode.name} offers a quieter, more introspective corner of music — a beautiful contrast in your universe.`,
+                          `${pinnedNode.name} sits in territory farther from your usual map. Explore to open that region.`,
                         );
                       }
-                      if (isAcoustic) {
+                      if (dist != null && dist < 0.34) {
                         templates.push(
-                          `Rooted in organic, acoustic textures, ${pinnedNode.name} would add warmth and depth to your catalog.`,
+                          `${pinnedNode.name} is near-shore: same broader world as artists you already follow.`,
+                        );
+                      } else if (dist != null && dist >= 0.67) {
+                        templates.push(
+                          `${pinnedNode.name} is a longer leap in territory, scene, or era from your current home.`,
                         );
                       }
-                      if (isDanceable) {
+                      if (band === 'OUTER_EDGE' || band === 'EXPANSION') {
                         templates.push(
-                          `${pinnedNode.name} brings infectious rhythm and groove — a dancefloor-ready addition to your world.`,
+                          `${pinnedNode.name} lives outside your core territory — a deliberate step into less familiar ground.`,
                         );
                       }
 
@@ -963,277 +1058,86 @@ export function OrcaHUD() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <Tooltip position="top" content="Open in Spotify and add to your library">
-                      <button
-                        type="button"
-                        onClick={() => handleExploreFrontier(pinnedNode, 'add-to-spotify')}
-                        disabled={exploreStatus !== 'idle'}
-                        style={{
-                          flex: 1.2,
-                          background: '#1db954',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '100px',
-                          padding: isMobile ? '10px 16px' : '12px 20px',
-                          fontSize: isMobile ? '12px' : '13.5px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 4px 14px rgba(29, 185, 84, 0.25)',
-                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                          fontFamily: "'Inter', sans-serif"
-                        }}
-                        onMouseEnter={(e) => { 
-                          e.currentTarget.style.background = '#1ed760'; 
-                          e.currentTarget.style.transform = 'translateY(-1px)'; 
-                          e.currentTarget.style.boxShadow = '0 6px 20px rgba(29, 185, 84, 0.35)';
-                        }}
-                        onMouseLeave={(e) => { 
-                          e.currentTarget.style.background = '#1db954'; 
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = '0 4px 14px rgba(29, 185, 84, 0.25)';
-                        }}
-                      >
-                        {exploreStatus === 'adding' ? 'Exploring…' : exploreStatus === 'done' ? 'Explored!' : 'Explore Artist'}
-                      </button>
-                    </Tooltip>
+                    {(() => {
+                      const actions = Array.isArray(pinnedNode.availableActions) ? pinnedNode.availableActions : [];
+                      const hasExplore = actions.length === 0 || actions.includes('explore');
+                      // Restore the 'I know this' button whenever explore or integrate is available
+                      const hasIntegrate = actions.length === 0 || actions.includes('integrate') || actions.includes('explore');
+                      
+                      // Mathematical flex distribution based on character lengths (14 for Explore Artist, 11 for I know this)
+                      const flexExplore = 14 / (14 + 11) * 2; // 1.12
+                      const flexIntegrate = 11 / (14 + 11) * 2; // 0.88
 
-                    <Tooltip position="top" content="Mark as explored without opening Spotify">
-                      <button
-                        type="button"
-                        onClick={() => handleExploreFrontier(pinnedNode, 'mark-explored')}
-                        disabled={exploreStatus !== 'idle'}
-                        style={{
-                          flex: 0.8,
-                          background: 'rgba(255, 255, 255, 0.55)',
-                          color: '#1e293b',
-                          border: '1px solid rgba(0, 0, 0, 0.08)',
-                          borderRadius: '100px',
-                          padding: isMobile ? '10px 16px' : '12px 20px',
-                          fontSize: isMobile ? '12px' : '13.5px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          backdropFilter: 'blur(10px)',
-                          WebkitBackdropFilter: 'blur(10px)',
-                          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)',
-                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                          fontFamily: "'Inter', sans-serif"
-                        }}
-                        onMouseEnter={(e) => { 
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)'; 
-                          e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.12)'; 
-                          e.currentTarget.style.transform = 'translateY(-1px)'; 
-                          e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.08)';
-                        }}
-                        onMouseLeave={(e) => { 
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.55)'; 
-                          e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.08)'; 
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.04)';
-                        }}
-                      >
-                        I know this
-                      </button>
-                    </Tooltip>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleFollowArtist(pinnedNode.id, 'follow')}
-                      disabled={followStatus !== 'idle'}
-                      style={{
-                        flex: 1,
-                        background: 'rgba(255, 255, 255, 0.45)',
-                        color: '#1e293b',
-                        border: '1px solid rgba(0, 0, 0, 0.08)',
-                        borderRadius: '100px',
-                        padding: '8px 12px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        backdropFilter: 'blur(8px)',
-                        WebkitBackdropFilter: 'blur(8px)',
-                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.5)',
-                        transition: 'background 0.2s',
-                        fontFamily: "'Inter', sans-serif"
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.7)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.45)'; }}
-                    >
-                      {followStatus === 'loading' ? 'Loading…' : 'Follow Artist'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleIgnoreArtist(pinnedNode.id)}
-                      disabled={ignoreStatus !== 'idle'}
-                      style={{
-                        flex: 1,
-                        background: 'rgba(255, 255, 255, 0.45)',
-                        color: '#1e293b',
-                        border: '1px solid rgba(0, 0, 0, 0.08)',
-                        borderRadius: '100px',
-                        padding: '8px 12px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        backdropFilter: 'blur(8px)',
-                        WebkitBackdropFilter: 'blur(8px)',
-                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.5)',
-                        transition: 'background 0.2s',
-                        fontFamily: "'Inter', sans-serif"
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.7)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.45)'; }}
-                    >
-                      {ignoreStatus === 'loading' ? 'Loading…' : 'Ignore Artist'}
-                    </button>
-                  </div>
-
-                  {/* Genre Journey Opportunities (GIA-driven) */}
-                  {(() => {
-                    const primaryGenreName = pinnedNode.genres?.[0]?.toLowerCase();
-                    const genreSnapshot = graph?.genres.find((g: any) => g.name.toLowerCase() === primaryGenreName);
-                    if (!genreSnapshot) return null;
-
-                    const isJourneyActive = genreSnapshot.journey?.active;
-                    const canStart = genreSnapshot.availableActions?.canStartJourney;
-                    const canContinue = genreSnapshot.availableActions?.canContinueJourney;
-                    const canCancel = genreSnapshot.availableActions?.canPause;
-
-                    if (!canStart && !canContinue && !isJourneyActive) return null;
-
-                    return (
-                      <div style={{
-                        marginTop: '16px',
-                        padding: '12px',
-                        background: 'rgba(255, 255, 255, 0.45)',
-                        border: '1px solid rgba(0, 0, 0, 0.08)',
-                        borderRadius: '12px',
-                        backdropFilter: 'blur(10px)',
-                        WebkitBackdropFilter: 'blur(10px)',
-                      }}>
-                        <h4 style={{
-                          margin: '0 0 6px 0',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          color: 'rgba(0,0,0,0.8)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.04em'
-                        }}>
-                          Genre Journey: {genreSnapshot.name}
-                        </h4>
-                        <p style={{
-                          margin: '0 0 10px 0',
-                          fontSize: '11px',
-                          color: 'rgba(0,0,0,0.55)',
-                          lineHeight: '1.4'
-                        }}>
-                          {isJourneyActive 
-                            ? `Active journey in progress. Current step: ${genreSnapshot.journey?.milestone || 1}.`
-                            : `A template pathway is available to integrate this genre into your profile.`}
-                        </p>
-
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          {isJourneyActive ? (
-                            <>
+                      return (
+                        <>
+                          {hasExplore && (
+                            <Tooltip position="top" content="Open in Spotify and add to your library">
                               <button
                                 type="button"
-                                onClick={() => handleJourneyAction(genreSnapshot.name, 'continue', 'active-id')}
-                                disabled={journeyStatus !== 'idle'}
+                                onClick={() => handleExploreFrontier(pinnedNode, 'add-to-spotify')}
+                                disabled={exploreStatus !== 'idle'}
                                 style={{
-                                  flex: 1.2,
+                                  flex: flexExplore,
                                   background: '#1db954',
                                   color: '#ffffff',
                                   border: 'none',
                                   borderRadius: '100px',
-                                  padding: '8px 12px',
-                                  fontSize: '11.5px',
+                                  padding: isMobile ? '8px 12px' : '10px 16px',
+                                  fontSize: isMobile ? '11px' : '12.5px',
                                   fontWeight: 600,
                                   cursor: 'pointer',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '6px',
-                                  boxShadow: '0 2px 8px rgba(29, 185, 84, 0.2)',
-                                  transition: 'background 0.2s',
+                                  boxShadow: '0 4px 14px rgba(29, 185, 84, 0.25)',
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                   fontFamily: "'Inter', sans-serif"
                                 }}
                               >
-                                Continue
+                                {exploreStatus === 'adding' ? 'Exploring…' : exploreStatus === 'done' ? 'Explored!' : 'Explore Artist'}
                               </button>
+                            </Tooltip>
+                          )}
+
+                          {hasIntegrate && (
+                            <Tooltip position="top" content="Mark as explored without opening Spotify">
                               <button
                                 type="button"
-                                onClick={() => handleJourneyAction(genreSnapshot.name, 'cancel', 'active-id')}
-                                disabled={journeyStatus !== 'idle'}
+                                onClick={() => handleExploreFrontier(pinnedNode, 'mark-explored')}
+                                disabled={exploreStatus !== 'idle'}
                                 style={{
-                                  flex: 0.8,
-                                  background: 'rgba(0, 0, 0, 0.05)',
-                                  color: 'rgba(0, 0, 0, 0.7)',
+                                  flex: flexIntegrate,
+                                  background: 'rgba(255, 255, 255, 0.55)',
+                                  color: '#1e293b',
                                   border: '1px solid rgba(0, 0, 0, 0.08)',
                                   borderRadius: '100px',
-                                  padding: '8px 12px',
-                                  fontSize: '11.5px',
+                                  padding: isMobile ? '8px 12px' : '10px 16px',
+                                  fontSize: isMobile ? '11px' : '12.5px',
                                   fontWeight: 600,
                                   cursor: 'pointer',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '6px',
-                                  transition: 'background 0.2s',
+                                  backdropFilter: 'blur(10px)',
+                                  WebkitBackdropFilter: 'blur(10px)',
+                                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)',
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                   fontFamily: "'Inter', sans-serif"
                                 }}
                               >
-                                Cancel
+                                I know this
                               </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleJourneyAction(genreSnapshot.name, 'start')}
-                              disabled={journeyStatus !== 'idle'}
-                              style={{
-                                width: '100%',
-                                background: 'rgba(29, 185, 84, 0.85)',
-                                color: '#ffffff',
-                                border: '1px solid rgba(29, 185, 84, 0.2)',
-                                borderRadius: '100px',
-                                padding: '8px 12px',
-                                fontSize: '11.5px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                boxShadow: '0 2px 8px rgba(29, 185, 84, 0.15)',
-                                transition: 'background 0.2s',
-                                fontFamily: "'Inter', sans-serif"
-                              }}
-                            >
-                              Start Journey
-                            </button>
+                            </Tooltip>
                           )}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+
+
                 </div>
               )}
  
@@ -1465,102 +1369,50 @@ export function OrcaHUD() {
         )}
       </div>
 
-      {/* Centered Taste Summary Text */}
-      {(tasteSummary || graph) && (
-        <div 
-          className="taste-summary-text"
-          style={{
-            position: 'fixed',
-            bottom: '9%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-            fontSize: '13px',
-            color: 'rgba(0,0,0,0.38)',
-            fontWeight: 500,
-            letterSpacing: '0.02em',
-            textAlign: 'center',
-            width: '80%',
-            maxWidth: '600px',
-            pointerEvents: 'none',
-            userSelect: 'none',
-            animation: 'fadeInText 1s ease-out 800ms forwards',
-            opacity: 0,
-            fontFamily: "'Inter', system-ui, sans-serif",
-          }}
-        >
-          {graph ? (
-            <>
-              {graph.nodes.length} artists <span style={{ fontWeight: 'bold', margin: '0 4px' }}>•</span> {new Set(graph.nodes.map(n => n.genres[0] || 'pop')).size} territories
-            </>
-          ) : (
-            tasteSummary
-          )}
-        </div>
-      )}
+      <DepthControl
+        activeDepth={activeDepth}
+        onCycle={cycleDepth}
+        isMobile={isMobile}
+      />
+      <LeapFallbackBanner
+        visible={
+          (activeDepth === 'farther' && leapBucketFallback) ||
+          (activeDepth === 'close' && shoreBucketFallback) ||
+          distanceVarianceCollapsed
+        }
+        kind={
+          distanceVarianceCollapsed &&
+          !(activeDepth === 'farther' && leapBucketFallback) &&
+          !(activeDepth === 'close' && shoreBucketFallback)
+            ? 'variance'
+            : activeDepth === 'close' && shoreBucketFallback
+              ? 'close'
+              : 'leap'
+        }
+        isMobile={isMobile}
+      />
 
-      {/* Phase 2 Widgets */}
+      <ExpansionPanel onClose={() => setFrontierPanelOpen(false)} />
 
-      <FrontierPanel onClose={() => setFrontierPanelOpen(false)} />
+      {/* Unexplored list — bottom right, same pill family */}
+      <div className="orca-hud-pill-wrap orca-hud-pill-wrap--right">
+        <Tooltip position="left" content="Unexplored artists">
+          <button
+            type="button"
+            className={`orca-hud-pill-btn${frontierPanelOpen ? ' is-active' : ''}`}
+            onClick={() => setFrontierPanelOpen(!frontierPanelOpen)}
+            aria-label="Toggle unexplored list"
+            aria-pressed={frontierPanelOpen}
+          >
+            Unexplored
+          </button>
+        </Tooltip>
+      </div>
 
-      {/* Frontier Toggle Button — bottom right */}
-      <Tooltip position="left" content="Toggle Unexplored frontier list">
-        <button
-          type="button"
-          className="orca-frontier-toggle-btn"
-          onClick={() => setFrontierPanelOpen(!frontierPanelOpen)}
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            background: 'rgba(255, 255, 255, 0.88)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(20, 20, 20, 0.08)',
-            borderRadius: '100px',
-            padding: '8px 18px',
-            fontSize: '11px',
-            fontWeight: 600,
-            color: '#111118',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0,0,0,0.03)',
-            zIndex: 20,
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            pointerEvents: 'auto',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => { 
-            e.currentTarget.style.background = '#ffffff'; 
-            e.currentTarget.style.transform = 'scale(1.03)';
-          }}
-          onMouseLeave={(e) => { 
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.88)'; 
-            e.currentTarget.style.transform = 'none';
-          }}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: 'rgba(0,0,0,0.5)' }}>
-            <path d="M1 5H9M5 1V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Unexplored
-        </button>
-      </Tooltip>
-
-      {/* Animation keyframes */}
       <style>{`
         @keyframes hudPulse {
           0%, 100% { opacity: 0.3; }
           50% { opacity: 0.9; }
-        }
-        @keyframes fadeInHUD {
-          from { opacity: 0; transform: translateY(6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeInText {
-          from { opacity: 0; transform: translate(-50%, 6px); }
-          to   { opacity: 1; transform: translate(-50%, 0); }
         }
         @keyframes spin {
           0% { transform: rotate(0deg); }
@@ -1726,9 +1578,9 @@ export function OrcaHUD() {
             key={item.id}
             style={{
               pointerEvents: 'auto',
-              background: item.priority >= 4 ? 'rgba(251, 191, 36, 0.95)' : 'rgba(255, 255, 255, 0.92)',
-              color: item.priority >= 4 ? '#78350f' : '#1e293b',
-              border: '1px solid rgba(0, 0, 0, 0.08)',
+              background: item.type === 'ArtistExplored' ? 'rgba(20, 20, 25, 0.96)' : (item.priority >= 4 ? 'rgba(251, 191, 36, 0.95)' : 'rgba(255, 255, 255, 0.92)'),
+              color: item.type === 'ArtistExplored' ? '#ffffff' : (item.priority >= 4 ? '#78350f' : '#1e293b'),
+              border: item.type === 'ArtistExplored' ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(0, 0, 0, 0.08)',
               borderRadius: '16px',
               padding: '16px',
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
@@ -1747,9 +1599,9 @@ export function OrcaHUD() {
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
-                color: item.priority >= 4 ? '#92400e' : '#64748b'
+                color: item.type === 'ArtistExplored' ? '#2dd4bf' : (item.priority >= 4 ? '#92400e' : '#64748b')
               }}>
-                Priority {item.priority} • {item.type}
+                {item.type === 'ArtistExplored' ? 'Exploration' : `Priority ${item.priority} • ${item.type}`}
               </span>
               <button
                 type="button"

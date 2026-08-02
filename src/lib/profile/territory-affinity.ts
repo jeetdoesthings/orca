@@ -119,7 +119,7 @@ export async function computeUserTerritoryAffinity(
   }
 
   const exploredArtists = await prisma.exploredArtist.findMany({ where: { userId } });
-  const exploredArtistIds = new Set(exploredArtists.map(ea => ea.artistId));
+  const exploredArtistIds = new Set<string>(exploredArtists.map((ea: any) => ea.artistId));
 
   // 3. Retrieve Active version Territories with Memberships & Embeddings
   const maxVersionRecord = await prisma.territory.findFirst({
@@ -153,7 +153,7 @@ export async function computeUserTerritoryAffinity(
   // Load similarity graph and bridges
   const similarities = await prisma.territorySimilarity.findMany({});
   const simMap = new Map<string, number>();
-  similarities.forEach(s => {
+  similarities.forEach((s: any) => {
     simMap.set(`${s.territoryAId}_${s.territoryBId}`, s.similarity);
     simMap.set(`${s.territoryBId}_${s.territoryAId}`, s.similarity);
   });
@@ -186,7 +186,7 @@ export async function computeUserTerritoryAffinity(
     },
   });
 
-  userEmbeddings.forEach(emb => {
+  userEmbeddings.forEach((emb: any) => {
     if (emb.fusedVector) {
       try {
         const vec: number[] = JSON.parse(emb.fusedVector);
@@ -214,13 +214,13 @@ export async function computeUserTerritoryAffinity(
     { sensoryVector: number[]; orthogonalCulturalVector: number[]; confidence: number }
   >();
 
-  territories.forEach(t => {
+  territories.forEach((t: any) => {
     const fusedSum = new Array<number>(33).fill(0.0);
     const audioSum = new Array<number>(6).fill(0.0);
     let weightSum = 0.0;
     let confidenceSum = 0.0;
 
-    t.memberships.forEach(m => {
+    t.memberships.forEach((m: any) => {
       const emb = m.artist.embeddings[0];
       if (emb?.fusedVector && emb?.audioVector) {
         try {
@@ -296,8 +296,8 @@ export async function computeUserTerritoryAffinity(
     }
 
     let maxBridgeStrength = 0.0;
-    const tBridges = bridges.filter(b => b.territoryAId === T.id || b.territoryBId === T.id);
-    tBridges.forEach(b => {
+    const tBridges = bridges.filter((b: any) => b.territoryAId === T.id || b.territoryBId === T.id);
+    tBridges.forEach((b: any) => {
       const otherTId = b.territoryAId === T.id ? b.territoryBId : b.territoryAId;
       const otherOccupancy = mediumTermOccupancies[otherTId] ?? 0.0;
       if (otherOccupancy >= 0.05 && b.bridgeStrength > maxBridgeStrength) {
@@ -376,7 +376,7 @@ export async function computeUserTerritoryAffinity(
   }
 
   // 7. Database Transactions & Persistence
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const res of results) {
       // Upsert current UserTerritoryAffinity
       await tx.userTerritoryAffinity.upsert({
@@ -450,3 +450,50 @@ export async function computeUserTerritoryAffinity(
 
   return results;
 }
+
+/**
+ * Computes the affinity score for a given artist and user.
+ * Supports synchronous in-memory lookup via UserContext.
+ */
+export async function calculateAffinity(artistId: string, userId: string, context?: any): Promise<number> {
+  let normalizedGenre = 'pop';
+
+  if (context && context.artistGenresMap && context.artistGenresMap.has(artistId)) {
+    normalizedGenre = context.artistGenresMap.get(artistId);
+  } else {
+    // Query artist details
+    const artist = await prisma.artist.findUnique({
+      where: { id: artistId },
+      select: { rawGenres: true }
+    });
+    if (artist?.rawGenres) {
+      try {
+        const { normaliseGenre } = await import('@/lib/graph/genre-normaliser');
+        const parsed = JSON.parse(artist.rawGenres);
+        normalizedGenre = normaliseGenre(parsed);
+      } catch {}
+    }
+  }
+
+  const GENRE_TO_TERRITORY: Record<string, string> = {
+    'hip-hop': 'Territory_v2_001',
+    'rock': 'Territory_v2_002',
+    'electronic': 'Territory_v2_003',
+    'pop': 'Territory_v2_004',
+    'jazz': 'Territory_v2_005'
+  };
+  const tId = GENRE_TO_TERRITORY[normalizedGenre] || normalizedGenre;
+
+  if (context && context.affinityMap) {
+    const rawVal = context.affinityMap.get(tId) ?? context.affinityMap.get(normalizedGenre) ?? 50;
+    return rawVal <= 1.0 ? Math.round(rawVal * 100) : rawVal;
+  }
+
+  const aff = await prisma.userTerritoryAffinity.findFirst({
+    where: { userId, territoryId: tId },
+    select: { compatibilityScore: true }
+  });
+
+  return aff ? Math.round(aff.compatibilityScore * 100) : 50;
+}
+

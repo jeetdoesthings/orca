@@ -4,7 +4,7 @@
  * to the globe surface at radius R.
  */
 import type { OrcaNode, OrcaEdge, OrcaGraph, ForceLayout } from './types';
-import { GENRE_ANCHORS, latLngToXYZ } from './genre-normaliser';
+import { GENRE_ANCHORS, latLngToXYZ, normaliseGenre } from './genre-normaliser';
 import type { InternalGenre } from './genre-normaliser';
 
 // d3-force-3d is a CommonJS module, import accordingly
@@ -40,7 +40,11 @@ function seedPositions(nodes: OrcaNode[], radius: number): void {
   const latLngs: { lat: number; lng: number }[] = [];
 
   for (const node of nodes) {
-    const primaryGenre = (node.genres[0] || 'pop').toLowerCase() as InternalGenre;
+    // Must normalise — raw tags like "trap" / "alternative rock" miss GENRE_ANCHORS
+    // and all fall back to pop → entire graph collapses to one region.
+    const primaryGenre = normaliseGenre(
+      node.genres?.length ? node.genres : ['pop'],
+    ) as InternalGenre;
     const anchor = GENRE_ANCHORS[primaryGenre] || GENRE_ANCHORS['pop'];
 
     // Power scatter — tight core, sparse halo
@@ -120,26 +124,30 @@ export async function createLayout(
     return [(x / len) * r, (y / len) * r, (z / len) * r];
   }
 
-  // Prepare link data with string IDs
-  const links = graph.edges.map(e => ({
-    source: typeof e.source === 'string' ? e.source : e.source.id,
-    target: typeof e.target === 'string' ? e.target : e.target.id,
-    weight: e.weight,
-  }));
+  // Prepare link data with string IDs — only endpoints present in nodes
+  // (stale lastfm-* adjacentTo after Spotify login → d3 "node not found")
+  const nodeIdSet = new Set(graph.nodes.map((n) => n.id));
+  const links = graph.edges
+    .map((e) => ({
+      source: typeof e.source === 'string' ? e.source : e.source.id,
+      target: typeof e.target === 'string' ? e.target : e.target.id,
+      weight: e.weight,
+    }))
+    .filter((l) => nodeIdSet.has(l.source) && nodeIdSet.has(l.target) && l.source !== l.target);
 
-  // Create the simulation
+  // Weak links + repulsion: dense edge webs used to crush all nodes to one blob.
   const simulation = forceSimulation()
     .numDimensions(3)
     .nodes(graph.nodes)
-    .force('charge', forceManyBody().strength(-0.035).distanceMax(1.5))
+    .force('charge', forceManyBody().strength(-0.08).distanceMax(2.2))
     .force('link', forceLink(links)
       .id((d: OrcaNode) => d.id)
-      .strength((d: { weight?: number }) => (d.weight || 0.3) * 0.25)
-      .distance(0.35)
+      .strength((d: { weight?: number }) => (d.weight || 0.3) * 0.12)
+      .distance(0.55)
     )
-    .force('center', forceCenter(0, 0, 0).strength(0.005))
+    .force('center', forceCenter(0, 0, 0).strength(0.002))
     .alphaDecay(0.015)
-    .velocityDecay(0.35)
+    .velocityDecay(0.5)
     .stop(); // Start stopped — we'll control ticking manually
 
   // Apply genre clustering force manually
@@ -148,9 +156,7 @@ export async function createLayout(
     const genreCentroids = new Map<string, { x: number; y: number; z: number; count: number }>();
 
     for (const node of graph.nodes) {
-      const primary = node.genres[0]?.toLowerCase();
-      if (!primary) continue;
-
+      const primary = normaliseGenre(node.genres?.length ? node.genres : ['pop']);
       if (!genreCentroids.has(primary)) {
         genreCentroids.set(primary, { x: 0, y: 0, z: 0, count: 0 });
       }
@@ -170,11 +176,10 @@ export async function createLayout(
       }
     }
 
-    // Apply gentle force toward genre centroid
+    // Apply gentle force toward genre centroid (same normalised key as seed)
     const strength = 0.008;
     for (const node of graph.nodes) {
-      const primary = node.genres[0]?.toLowerCase();
-      if (!primary) continue;
+      const primary = normaliseGenre(node.genres?.length ? node.genres : ['pop']);
       const centroid = genreCentroids.get(primary);
       if (!centroid || centroid.count < 2) continue;
 
@@ -260,13 +265,21 @@ export async function createLayout(
         graph.nodes.push(node);
       }
 
-      // Add edges
-      const newLinks = newEdges.map(e => ({
-        source: typeof e.source === 'string' ? e.source : e.source.id,
-        target: typeof e.target === 'string' ? e.target : e.target.id,
-        weight: e.weight,
-      }));
-      graph.edges.push(...newEdges);
+      // Add edges only if both endpoints exist (after new nodes pushed)
+      const ids = new Set(graph.nodes.map((n) => n.id));
+      const newLinks = newEdges
+        .map((e) => ({
+          source: typeof e.source === 'string' ? e.source : e.source.id,
+          target: typeof e.target === 'string' ? e.target : e.target.id,
+          weight: e.weight,
+        }))
+        .filter((l) => ids.has(l.source) && ids.has(l.target) && l.source !== l.target);
+      const acceptedEdges = newEdges.filter((e) => {
+        const s = typeof e.source === 'string' ? e.source : e.source.id;
+        const t = typeof e.target === 'string' ? e.target : e.target.id;
+        return ids.has(s) && ids.has(t) && s !== t;
+      });
+      graph.edges.push(...acceptedEdges);
 
       // Update simulation
       simulation.nodes(graph.nodes);
@@ -278,7 +291,7 @@ export async function createLayout(
       links.push(...newLinks);
 
       // Reheat
-      simulation.alpha(0.4);
+      simulation.alpha(0.15);
     },
 
     stop() {

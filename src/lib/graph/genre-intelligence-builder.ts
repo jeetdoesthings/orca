@@ -11,10 +11,6 @@ export interface GenreIntelligenceSnapshotContext {
   artistTerritoryMap: Map<string, any>;
   bridgeArtistIds: Set<string>;
   activeIntervention: any | null;
-  journeyArtistIds: Set<string>;
-  journeyRolesMap: Map<string, string>;
-  journeyNodeIndexes: Map<string, number>;
-  activeJourneyTargetTerritory: string;
   genreToTerritoryMap: Map<string, string>;
 }
 
@@ -31,7 +27,6 @@ export function buildGenreSnapshot(
   const adoption = ctx.adoptions.find(a => a.territoryId === territoryId);
 
   const relState = rel ? rel.currentState : 'UNEXPLORED';
-  const isJourneyTarget = !!(territoryId && ctx.activeJourneyTargetTerritory === territoryId);
 
   // Filter artist IDs in this genre
   const genreArtistIds = artistNodes.map(n => n.id);
@@ -78,15 +73,6 @@ export function buildGenreSnapshot(
     confidence: affinity ? Math.round(affinity.confidence * 100) : 50,
   };
 
-  const journey = {
-    active: isJourneyTarget,
-    available: relState === 'CURIOUS' || relState === 'EXPLORING',
-    destination: isJourneyTarget ? 'Target Artist' : null,
-    milestone: isJourneyTarget ? 2 : null,
-    progress: isJourneyTarget ? 50 : 0,
-    confidence: 85,
-  };
-
   const growth = {
     tasteMemory: Math.round(avgMemoryStrength * 100),
     tasteExpansion: adoption ? Math.round(adoption.adoptionScore * 100) : 0,
@@ -113,25 +99,19 @@ export function buildGenreSnapshot(
   };
 
   const opportunities = {
-    journeyAvailable: relState === 'CURIOUS' || relState === 'EXPLORING',
-    recoveryAvailable: relState === 'DORMANT' || relState === 'RETURNING',
     expansionOpportunity: familiarity ? familiarity.familiarityScore < 0.4 : true,
     hiddenPotential: affinity ? affinity.hiddenPotential > 0.5 : false,
-    retryOpportunity: relState === 'REJECTED' || relState === 'RESISTANT',
   };
 
   const history = {
     firstDiscovery: rel ? rel.lastUpdatedAt.toISOString() : null,
     latestOrganicVisit: rel ? rel.lastUpdatedAt.toISOString() : null,
     previousInterventions: relState === 'RESIDENT' ? 2 : 0,
-    successfulJourneys: relState === 'RESIDENT' ? 1 : 0,
-    failedJourneys: 0,
     longitudinalState: relState,
   };
 
   const confidence = {
     relationship: rel ? Math.round(rel.stateConfidence * 100) : 50,
-    journey: 85,
     expansion: adoption ? Math.round(adoption.confidence * 100) : 50,
     identity: affinity ? Math.round(affinity.confidence * 100) : 50,
     mindset: affinity ? Math.round(affinity.confidence * 100) : 50,
@@ -139,13 +119,7 @@ export function buildGenreSnapshot(
   };
 
   const availableActions = {
-    canStartJourney: opportunities.journeyAvailable && !isJourneyTarget,
-    canContinueJourney: isJourneyTarget,
-    canRecoverJourney: opportunities.recoveryAvailable,
     canExpand: opportunities.expansionOpportunity,
-    canPause: isJourneyTarget,
-    canResume: false,
-    canRetry: opportunities.retryOpportunity,
     canExplore: reachableArtists.length > 0,
     canSave: true,
     canIgnore: true,
@@ -160,7 +134,6 @@ export function buildGenreSnapshot(
     nodeIds: genreArtistIds,
     relationship,
     identity,
-    journey,
     growth,
     currentSession,
     discovery,
@@ -178,9 +151,6 @@ export function buildArtistSnapshot(
   const mem = ctx.memories.find(m => m.artistId === node.id);
   const territoryId = ctx.artistTerritoryMap.get(node.id)?.territoryId || '';
   const relationshipState = ctx.relationships.find(r => r.territoryId === territoryId)?.currentState || 'UNEXPLORED';
-
-  const isInActiveJourney = ctx.journeyArtistIds.has(node.id);
-  const journeyRole = isInActiveJourney ? ctx.journeyRolesMap.get(node.id) || null : null;
 
   // Handle Spotify CDN Proxying
   const rawImg = node.imageUrl || '';
@@ -200,17 +170,12 @@ export function buildArtistSnapshot(
     ...node,
     relationshipState,
     memoryStrength: mem ? Math.round(mem.memoryStrength * 100) : null,
-    isInActiveJourney,
-    journeyRole,
     imageUrl,
     
     // V4 Dynamic Artist State Engine fields
     bridgeArtist: ctx.bridgeArtistIds.has(node.id),
     gatewayArtist: ctx.artistTerritoryMap.get(node.id)?.role === 'BORDER' || ctx.artistTerritoryMap.get(node.id)?.role === 'GATEWAY',
-    destinationArtist: journeyRole === 'DESTINATION',
     alreadyIntegrated,
-    activeJourneyStep: isInActiveJourney ? (ctx.journeyNodeIndexes.get(node.id) ?? -1) + 1 : null,
-    recommendedNext: isInActiveJourney && ctx.journeyNodeIndexes.get(node.id) === 1,
     discoveredRecently: ctx.recentExploredIds.has(node.id),
     memoryContribution: mem ? Math.round(mem.persistence * 100) : 0,
     availableActions,

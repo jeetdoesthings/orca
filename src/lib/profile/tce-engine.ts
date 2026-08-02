@@ -49,19 +49,19 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
   const affinities = await prisma.userTerritoryAffinity.findMany({
     where: { userId },
   });
-  const affinityMap = new Map(affinities.map((a) => [a.territoryId, a]));
+  const affinityMap = new Map<string, any>(affinities.map((a: any) => [a.territoryId, a]));
 
   // 3. Fetch Layer 6 UserTerritoryRelationships
   const relationships = await prisma.userTerritoryRelationship.findMany({
     where: { userId },
   });
-  const relationshipMap = new Map(relationships.map((r) => [r.territoryId, r]));
+  const relationshipMap = new Map<string, any>(relationships.map((r: any) => [r.territoryId, r]));
 
   // 4. Fetch Territory Familiarities (Layer 3 fallback)
   const dbFamiliarities = await prisma.territoryFamiliarity.findMany({
     where: { userId },
   });
-  const dbFamiliarityMap = new Map(dbFamiliarities.map((f) => [f.territoryId, f.familiarityScore]));
+  const dbFamiliarityMap = new Map<string, number>(dbFamiliarities.map((f: any) => [f.territoryId, f.familiarityScore]));
 
   // 5. Fetch Layer 7 UserTerritoryInterventions
   const interventions = await prisma.userTerritoryIntervention.findMany({
@@ -72,7 +72,7 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
   const prevCultivations = await prisma.userTerritoryCultivation.findMany({
     where: { userId },
   });
-  const prevCultivationMap = new Map(prevCultivations.map((c) => [c.territoryId, c]));
+  const prevCultivationMap = new Map<string, any>(prevCultivations.map((c: any) => [c.territoryId, c]));
 
   // 7. Retrieve active version territories and memberships
   const maxVersionRecord = await prisma.territory.findFirst({
@@ -92,7 +92,7 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
 
   // Map artist -> territory memberships
   const artistTerritoryMap = new Map<string, { territoryId: string; role: string }[]>();
-  memberships.forEach((m) => {
+  memberships.forEach((m: any) => {
     const list = artistTerritoryMap.get(m.artistId) || [];
     list.push({ territoryId: m.territoryId, role: m.role });
     artistTerritoryMap.set(m.artistId, list);
@@ -120,7 +120,7 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
     const accessibility = affinity.accessibility;
 
     // Resolve Layer 7 Intervention info
-    const inter = interventions.find((i) => i.territoryId === tId);
+    const inter = interventions.find((i: any) => i.territoryId === tId);
     const selectedIntervention = inter?.interventionType || 'HOLD';
     const interventionScore = inter?.interventionScore || 0.0;
     const baseConfidence = inter?.confidence || 0.5;
@@ -131,10 +131,10 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
     // ─── A. FAMILIARITY MODEL ──────────────────────────────────────────
 
     // Filter listening events associated with this territory
-    const territoryEvents = listeningEvents.filter((ev) => {
+    const territoryEvents = listeningEvents.filter((ev: any) => {
       if (ev.territoryId) return ev.territoryId === tId;
       const mems = artistTerritoryMap.get(ev.artistId) || [];
-      return mems.some((m) => m.territoryId === tId);
+      return mems.some((m: any) => m.territoryId === tId);
     });
 
     let targetPlays = 0;
@@ -144,10 +144,10 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
     let saves = 0;
     let skips = 0;
 
-    territoryEvents.forEach((ev) => {
+    territoryEvents.forEach((ev: any) => {
       const type = ev.eventType;
       const mems = artistTerritoryMap.get(ev.artistId) || [];
-      const mem = mems.find((m) => m.territoryId === tId);
+      const mem = mems.find((m: any) => m.territoryId === tId);
       const isBridge = mem?.role === 'BRIDGE';
 
       if (isBridge) {
@@ -289,7 +289,7 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
 
     // Group snapshots by week to check entropy and divergence stability
     const snapshotGrouped = new Map<string, Record<string, number>>();
-    snapshots.forEach((s) => {
+    snapshots.forEach((s: any) => {
       const dateStr = s.timestamp.toISOString().split('T')[0];
       const rec = snapshotGrouped.get(dateStr) || {};
       rec[s.territoryId] = s.occupancy;
@@ -366,7 +366,7 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
 
   // 9. Persist to Database inside a Transaction
   console.log(`[Layer 8] Saving TCE cultivation records to database...`);
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const res of results) {
       await tx.userTerritoryCultivation.upsert({
         where: {
@@ -402,3 +402,5 @@ export async function computeUserCultivation(userId: string): Promise<UserTerrit
   console.log(`[Layer 8] Successfully saved ${results.length} cultivation states.`);
   return results;
 }
+
+

@@ -108,7 +108,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
   const affinities = await prisma.userTerritoryAffinity.findMany({
     where: { userId },
   });
-  const affinityMap = new Map(affinities.map((a) => [a.territoryId, a]));
+  const affinityMap = new Map<string, any>(affinities.map((a: any) => [a.territoryId, a]));
 
   // 4. Fetch User Territory Profile (Occupancies)
   const utProfile = await prisma.userTerritoryProfile.findUnique({
@@ -127,7 +127,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
   const memories = await prisma.userTerritoryMemory.findMany({
     where: { userId }
   });
-  const memoryMap = new Map(memories.map((m) => [m.territoryId, m]));
+  const memoryMap = new Map<string, any>(memories.map((m: any) => [m.territoryId, m]));
 
   // 6. Fetch LOFL / Past Interventions
   const interventionOutcomes = await prisma.interventionOutcome.findMany({
@@ -160,7 +160,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
   ]);
 
   const territoryMetadataMap = new Map<string, any>();
-  territories.forEach((t) => {
+  territories.forEach((t: any) => {
     try {
       territoryMetadataMap.set(t.id, JSON.parse(t.metadata || '{}'));
     } catch {
@@ -199,7 +199,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
     const maxStrength = Math.max(S_res, S_exp, S_cur, S_resist, S_dorm, S_ret, S_em);
 
     // LOFL Heuristic
-    const outcomesForT = interventionOutcomes.filter(o => o.territoryId === tId);
+    const outcomesForT = interventionOutcomes.filter((o: any) => o.territoryId === tId);
     let loflBonus = 0;
     if (outcomesForT.length > 0) {
       const recent = outcomesForT[0];
@@ -393,13 +393,13 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
 
     if (selectedIntervention === 'BRIDGE') {
       const activeTerritoryIds = relationships
-        .filter((r) => r.currentState === 'RESIDENT' || r.currentState === 'STABILIZED' || r.currentState === 'EXPLORING' || (occupancyMediumMap[r.territoryId] || 0) >= 0.03)
-        .map((r) => r.territoryId);
+        .filter((r: any) => r.currentState === 'RESIDENT' || r.currentState === 'STABILIZED' || r.currentState === 'EXPLORING' || (occupancyMediumMap[r.territoryId] || 0) >= 0.03)
+        .map((r: any) => r.territoryId);
 
       if (activeTerritoryIds.length > 0) {
         let bestBridgeStrength = -1;
         let bestSourceId: string | null = null;
-        bridges.forEach((b) => {
+        bridges.forEach((b: any) => {
           if (b.territoryAId === tId && activeTerritoryIds.includes(b.territoryBId)) {
             if (b.bridgeStrength > bestBridgeStrength) {
               bestBridgeStrength = b.bridgeStrength;
@@ -417,7 +417,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
           bridgeTerritoryId = bestSourceId; 
         } else {
           let bestSim = -1;
-          similarities.forEach((s) => {
+          similarities.forEach((s: any) => {
             if (s.territoryAId === tId && activeTerritoryIds.includes(s.territoryBId)) {
               if (s.similarity > bestSim) {
                 bestSim = s.similarity;
@@ -438,7 +438,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
       sourceTerritoryId = tId;
       let bestSim = -1;
       let bestDestId: string | null = null;
-      similarities.forEach((s) => {
+      similarities.forEach((s: any) => {
         const otherId = s.territoryAId === tId ? s.territoryBId : s.territoryBId === tId ? s.territoryAId : null;
         if (otherId) {
           const occ = occupancyMediumMap[otherId] || 0.0;
@@ -481,7 +481,7 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
 
   // 7. Persist to Database inside a transaction
   console.log(`[Layer 7] Saving CPDE intervention records for user ${userId} to database...`);
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const res of results) {
       await tx.userTerritoryIntervention.upsert({
         where: { userId_territoryId: { userId: res.userId, territoryId: res.territoryId } },
@@ -541,3 +541,24 @@ export async function computeUserInterventions(userId: string): Promise<UserTerr
 
   return results;
 }
+
+/**
+ * Computes active policy / interventions list.
+ * Supports synchronous in-memory lookup via UserContext.
+ */
+export async function calculatePolicy(userId: string, context?: any): Promise<{ interventions: Array<{ territoryId: string; selectedIntervention: string }> }> {
+  if (context && context.policy) {
+    return context.policy;
+  }
+  const { prisma } = await import('@/lib/prisma');
+  const intersRaw = await prisma.userTerritoryIntervention.findMany({
+    where: { userId },
+    select: { territoryId: true, interventionType: true }
+  });
+  const inters = intersRaw.map((i: any) => ({
+    territoryId: i.territoryId,
+    selectedIntervention: i.interventionType
+  }));
+  return { interventions: inters };
+}
+

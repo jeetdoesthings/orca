@@ -8,6 +8,7 @@ interface ObservationStore {
   fetchObservations: (searchSuffix: string) => Promise<void>;
   acknowledgeObservation: (id: string, searchSuffix: string) => Promise<void>;
   dismissObservation: (id: string) => void;
+  addObservation: (observation: Observation) => void;
 }
 
 export const useObservationStore = create<ObservationStore>((set, get) => ({
@@ -15,31 +16,15 @@ export const useObservationStore = create<ObservationStore>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchObservations: async (searchSuffix: string) => {
-    set({ isLoading: true });
-    try {
-      const res = await fetch(`/api/observations${searchSuffix}`);
-      if (!res.ok) throw new Error('Failed to fetch observations');
-      const data = await res.json();
-      const newItems: Observation[] = data.observations || [];
-
-      set(state => {
-        // Merge and de-duplicate by id
-        const merged = [...state.observations];
-        newItems.forEach(item => {
-          const exists = merged.some(f => f.id === item.id);
-          if (!exists) {
-            merged.push(item);
-          }
-        });
-        return { observations: merged, isLoading: false, error: null };
-      });
-    } catch (err: any) {
-      set({ error: err.message, isLoading: false });
-    }
+  fetchObservations: async () => {
+    // No-op to disable backend notifications on load
   },
 
   acknowledgeObservation: async (id: string, searchSuffix: string) => {
+    if (id.startsWith('obs_explored_')) {
+      get().dismissObservation(id);
+      return;
+    }
     try {
       const res = await fetch(`/api/observations/${id}/acknowledge${searchSuffix}`, {
         method: 'POST'
@@ -60,5 +45,19 @@ export const useObservationStore = create<ObservationStore>((set, get) => ({
     set(state => ({
       observations: state.observations.filter(f => f.id !== id)
     }));
+  },
+
+  addObservation: (observation: Observation) => {
+    set(state => {
+      // Avoid duplicate notifications for the same artist
+      const exists = state.observations.some(
+        obs => obs.id === observation.id || 
+        (obs.relatedEntities?.artistId === observation.relatedEntities?.artistId && obs.type === 'ArtistExplored')
+      );
+      if (exists) return state;
+      return {
+        observations: [observation, ...state.observations]
+      };
+    });
   }
 }));

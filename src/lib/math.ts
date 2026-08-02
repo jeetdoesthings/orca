@@ -1,4 +1,19 @@
 /**
+ * Calculates Euclidean distance between two equal-length vectors.
+ */
+export function euclideanDistance(a: number[], b: number[]): number {
+  const len = Math.min(a.length, b.length);
+  if (len === 0) return 0.0;
+
+  let sum = 0.0;
+  for (let i = 0; i < len; i++) {
+    const diff = a[i] - b[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+/**
  * Clamp a value between a minimum and maximum.
  */
 export function clamp(value: number, min: number, max: number): number {

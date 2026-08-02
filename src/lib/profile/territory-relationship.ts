@@ -118,11 +118,11 @@ export async function computeUserTerritoryRelationships(userId: string): Promise
   const existingRelationships = await prisma.userTerritoryRelationship.findMany({ where: { userId } });
 
   // Map for fast lookups
-  const momentumMap = new Map(momentums.map(m => [m.territoryId, m]));
-  const adoptionMap = new Map(adoptions.map(a => [a.territoryId, a]));
-  const familiarityMap = new Map(familiarities.map(f => [f.territoryId, f]));
-  const affinityMap = new Map(affinities.map(a => [a.territoryId, a]));
-  const relMap = new Map(existingRelationships.map(r => [r.territoryId, r]));
+  const momentumMap = new Map<string, any>(momentums.map((m: any) => [m.territoryId, m]));
+  const adoptionMap = new Map<string, any>(adoptions.map((a: any) => [a.territoryId, a]));
+  const familiarityMap = new Map<string, any>(familiarities.map((f: any) => [f.territoryId, f]));
+  const affinityMap = new Map<string, any>(affinities.map((a: any) => [a.territoryId, a]));
+  const relMap = new Map<string, any>(existingRelationships.map((r: any) => [r.territoryId, r]));
 
   const results: UserTerritoryRelationshipResult[] = [];
 
@@ -343,7 +343,7 @@ export async function computeUserTerritoryRelationships(userId: string): Promise
 
   // 5. Database Transactions & Persistence
   console.log(`[Layer 6] Saving relationship results to database...`);
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const res of results) {
       // Fetch previous state to detect transition
       const prevRel = relMap.get(res.territoryId);
@@ -472,3 +472,81 @@ export async function computeUserTerritoryRelationships(userId: string): Promise
 
   return results;
 }
+
+/**
+ * Computes relationship status for a territory.
+ * Supports synchronous in-memory lookup via UserContext.
+ */
+export async function calculateRelationship(territoryId: string, userId: string, context?: any): Promise<string> {
+  const GENRE_TO_TERRITORY: Record<string, string> = {
+    'hip-hop': 'Territory_v2_001',
+    'rock': 'Territory_v2_002',
+    'electronic': 'Territory_v2_003',
+    'pop': 'Territory_v2_004',
+    'jazz': 'Territory_v2_005'
+  };
+  const tId = GENRE_TO_TERRITORY[territoryId] || territoryId;
+
+  if (context && context.relationshipMap) {
+    const rel = context.relationshipMap.get(tId) ?? context.relationshipMap.get(territoryId);
+    return rel?.currentState || 'UNEXPLORED';
+  }
+  const { prisma } = await import('@/lib/prisma');
+  const rel = await prisma.userTerritoryRelationship.findFirst({
+    where: { userId, territoryId: tId },
+    select: { currentState: true }
+  });
+  return rel?.currentState || 'UNEXPLORED';
+}
+
+/**
+ * Computes longitudinal confidence score for a relationship.
+ * Supports synchronous in-memory lookup via UserContext.
+ */
+export async function calculateLongitudinalConfidence(territoryId: string, userId: string, context?: any): Promise<number> {
+  const GENRE_TO_TERRITORY: Record<string, string> = {
+    'hip-hop': 'Territory_v2_001',
+    'rock': 'Territory_v2_002',
+    'electronic': 'Territory_v2_003',
+    'pop': 'Territory_v2_004',
+    'jazz': 'Territory_v2_005'
+  };
+  const tId = GENRE_TO_TERRITORY[territoryId] || territoryId;
+
+  if (context && context.relationshipMap) {
+    const rel = context.relationshipMap.get(tId) ?? context.relationshipMap.get(territoryId);
+    return rel ? Math.round((rel.stateConfidence ?? 0.8) * 100) : 80;
+  }
+  const { prisma } = await import('@/lib/prisma');
+  const rel = await prisma.userTerritoryRelationship.findFirst({
+    where: { userId, territoryId: tId },
+    select: { stateConfidence: true }
+  });
+  return rel ? Math.round((rel.stateConfidence ?? 0.8) * 100) : 80;
+}
+
+/**
+ * Computes momentum score for a territory.
+ * Supports synchronous in-memory lookup via UserContext.
+ */
+export async function calculateMomentumScore(territoryId: string, userId: string, context?: any): Promise<number> {
+  const GENRE_TO_TERRITORY: Record<string, string> = {
+    'hip-hop': 'Territory_v2_001',
+    'rock': 'Territory_v2_002',
+    'electronic': 'Territory_v2_003',
+    'pop': 'Territory_v2_004',
+    'jazz': 'Territory_v2_005'
+  };
+  const tId = GENRE_TO_TERRITORY[territoryId] || territoryId;
+
+  if (context && context.momentumsMap) {
+    return context.momentumsMap.get(tId) ?? context.momentumsMap.get(territoryId) ?? 0;
+  }
+  const { prisma } = await import('@/lib/prisma');
+  const mom = await prisma.territoryMomentum.findFirst({
+    where: { userId, territoryId: tId },
+    select: { current: true }
+  });
+  return mom ? Math.round(mom.current * 100) : 0;
+}
+

@@ -4,8 +4,7 @@ import { readObservations, writeObservations } from './feedback-store';
 export function evaluateFeedbackRules(
   userId: string,
   genres: GenreRegion[],
-  nodes: OrcaNode[],
-  journey: any
+  nodes: OrcaNode[]
 ): Observation[] {
   const currentObservations = readObservations(userId);
   const candidates: Observation[] = [];
@@ -28,14 +27,12 @@ export function evaluateFeedbackRules(
         id: `obs_solidified_${genre.id}`,
         type: 'SolidifiedMemory',
         summary: `Your familiarity with ${genre.name} solidified`,
-        detail: `You've reached ${genre.growth.tasteMemory}% familiarity with ${genre.name}. UK Garage might be within reach now.`,
+        detail: `You've reached ${genre.growth.tasteMemory}% familiarity with ${genre.name}.`,
         priority: 4,
         confidence: (genre.confidence?.relationship ?? 50) / 100,
         timestamp: now,
         relatedEntities: { genreId: genre.id },
-        availableActions: [
-          makeAction('START_JOURNEY', 'Start Pathway', '/api/journeys', 'POST', { destinationGenreId: genre.id })
-        ],
+        availableActions: [],
         ttl: 3600,
         status: 'active'
       });
@@ -58,20 +55,20 @@ export function evaluateFeedbackRules(
       });
     }
 
-    // 3. Bridge Discovered
-    if (genre.opportunities?.journeyAvailable && genre.availableActions?.canStartJourney) {
+    // 3. Expand Taste
+    const rCurrent = genre.relationship?.current || 'UNEXPLORED';
+    if ((rCurrent === 'CURIOUS' || rCurrent === 'EXPLORING' || rCurrent === 'UNEXPLORED') && 
+        genre.discovery && genre.discovery.bridgeArtists && genre.discovery.bridgeArtists.length > 0) {
       candidates.push({
         id: `obs_bridge_${genre.id}`,
         type: 'BridgeDiscovery',
-        summary: `Found a new bridge artist for ${genre.name}`,
-        detail: `ORCA identified a pathway connection. A journey sequencing is now ready.`,
+        summary: `New Taste Expansion opportunity found in ${genre.name}`,
+        detail: `ORCA identified an artist to expand your tastes into ${genre.name}.`,
         priority: 2,
-        confidence: (genre.confidence?.journey ?? 85) / 100,
+        confidence: (genre.confidence?.expansion ?? 85) / 100,
         timestamp: now,
         relatedEntities: { genreId: genre.id },
-        availableActions: [
-          makeAction('START_JOURNEY', 'Start Pathway', '/api/journeys', 'POST', { destinationGenreId: genre.id })
-        ],
+        availableActions: [],
         ttl: 1800,
         status: 'active'
       });
@@ -129,43 +126,23 @@ export function evaluateFeedbackRules(
     }
 
     // 8. Recovery Opportunity
-    if (genre.opportunities?.recoveryAvailable) {
+    if (rCurrent === 'DORMANT' || rCurrent === 'RETURNING') {
       candidates.push({
         id: `obs_recovery_${genre.id}`,
         type: 'RecoveryOpportunity',
-        summary: `You can resume the ${genre.name} journey`,
-        detail: `Familiarity has dropped but recovery pathways are now active.`,
+        summary: `Reconnect with ${genre.name} music`,
+        detail: `Familiarity with ${genre.name} has decreased, but rediscovery opportunities are waiting.`,
         priority: 4,
         confidence: 0.8,
         timestamp: now,
         relatedEntities: { genreId: genre.id },
-        availableActions: [
-          makeAction('RECOVER_JOURNEY', 'Resume Journey', '/api/journeys/active-id/continue', 'POST')
-        ],
+        availableActions: [],
         ttl: 3600,
         status: 'active'
       });
     }
   });
 
-  // Evaluate Rules on Journey
-  if (journey && journey.active && journey.progressPercent >= 40) {
-    candidates.push({
-      id: `obs_journey_milestone_${journey.id}`,
-      type: 'JourneyMilestone',
-      summary: `Milestone reached in ${journey.targetTerritory} journey`,
-      detail: `You've completed ${journey.currentStep} steps on your active path.`,
-      priority: 3,
-      confidence: 0.9,
-      timestamp: now,
-      relatedEntities: { journeyId: journey.id },
-      availableActions: [
-        makeAction('CONTINUE_JOURNEY', 'Continue', `/api/journeys/${journey.id}/continue`, 'POST')
-      ],
-      ttl: 3600,
-      status: 'active'
-    });
-  }
 
   // Evaluate Rules on Nodes
   nodes.forEach(node => {
@@ -245,7 +222,6 @@ export function evaluateFeedbackRules(
       o.type === item.type && 
       o.relatedEntities.genreId === item.relatedEntities.genreId &&
       o.relatedEntities.artistId === item.relatedEntities.artistId &&
-      o.relatedEntities.journeyId === item.relatedEntities.journeyId &&
       (Date.now() - new Date(o.timestamp).getTime()) < 24 * 60 * 60 * 1000
     );
     if (!duplicate) {

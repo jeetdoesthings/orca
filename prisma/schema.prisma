@@ -1,91 +1,315 @@
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+// Part 16: url from env. Default local: file:./dev.db (see .env.example).
+// Postgres cutover: set provider = "postgresql" and DATABASE_URL=postgresql://…
+// Dual-running both providers is not supported by Prisma — switch provider at cutover.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  spotifyId     String?   @unique
-  displayName   String?
-  avatarUrl     String?
-  country       String?
-
-  // Sync state
-  lastSyncAt DateTime?
-  syncStatus String    @default("PENDING") // PENDING, SYNCING, COMPLETE, FAILED
-
-  // Processed globe data (JSON strings for SQLite compatibility)
-  globeData    String? // UserGlobeNode[]
-  homeRegion   String? // HomeRegion
-  tasteSummary String?
-
-  // Phase 2 additions:
-  frontierData           String? // serialized ArtistNode[]
-  perimeterData          String? // serialized PerimeterData[]
-  frontierStatus         String    @default("PENDING") // PENDING, COMPUTING, COMPLETE, FAILED
-  frontierComputedAt     DateTime?
-  adventurousnessHistory String? // serialized AdventurnousnessMetric[]
-
-  // User Profiling System (Phase 3)
-  profileData       String? // serialized UserProfile (multi-layer taste profile)
-  profileVersion    Int       @default(0)
-  profileComputedAt DateTime?
-
-  exploredArtists ExploredArtist[]
-
-  // Phase 3 Layer 3 additions
-  territoryProfile       UserTerritoryProfile?
-  territorySnapshots     UserTerritorySnapshot[]
-  territoryMomentums     TerritoryMomentum[]
-  territoryAdoptions     TerritoryAdoption[]
-  territoryFamiliarities TerritoryFamiliarity[]
-
-  // Phase 4 Layer 4 additions
-  territoryAffinities        UserTerritoryAffinity[]
-  territoryAffinitySnapshots UserTerritoryAffinitySnapshot[]
-
-  // Phase 5 Layer 5 Redesign (Contextual Bandit Gating)
-  banditState     UserBanditState?
-  banditDecisions BanditDecision[]
-
-  // Phase 6 Layer 6 Relationship States
+  id                             String                              @id @default(cuid())
+  name                           String?
+  email                          String?                             @unique
+  emailVerified                  DateTime?
+  image                          String?
+  spotifyId                      String?                             @unique
+  displayName                    String?
+  avatarUrl                      String?
+  country                        String?
+  lastSyncAt                     DateTime?
+  syncStatus                     String                              @default("PENDING")
+  globeData                      String?
+  homeRegion                     String?
+  tasteSummary                   String?
+  frontierData                   String?
+  perimeterData                  String?
+  frontierStatus                 String                              @default("PENDING")
+  frontierComputedAt             DateTime?
+  /// Versioned world snapshot metadata (versions, delta, visibleNodeIds).
+  /// Frontier node payloads live in frontierData — not duplicated here.
+  /// Replaces the former filesystem world-state-*.json store.
+  worldStateData                 String?
+  adventurousnessHistory         String?
+  profileData                    String?
+  profileVersion                 Int                                 @default(0)
+  profileComputedAt              DateTime?
+  createdAt                      DateTime                            @default(now())
+  updatedAt                      DateTime                            @updatedAt
+  accounts                       Account[]
+  banditDecisions                BanditDecision[]
+  exploredArtists                ExploredArtist[]
+  interventionExplanations       InterventionExplanation[]
+  interventionOutcomes           InterventionOutcome[]
+  interventionScoreBreakdowns    InterventionScoreBreakdown[]
+  longitudinalInterventions      LongitudinalIntervention[]
+  relationshipExplanations       RelationshipExplanation[]
+  relationshipTransitions        RelationshipTransition[]
+  sessions                       Session[]
+  territoryAdoptions             TerritoryAdoption[]
+  territoryFamiliarities         TerritoryFamiliarity[]
+  territoryMomentums             TerritoryMomentum[]
+  UserArtistMemory               UserArtistMemory[]
+  banditState                    UserBanditState?
+  genreRelationshipStates       UserGenreRelationshipState[]
+  listeningEvents                UserListeningEvent[]
+  territoryAffinities            UserTerritoryAffinity[]
+  territoryAffinitySnapshots     UserTerritoryAffinitySnapshot[]
+  territoryCultivations          UserTerritoryCultivation[]
+  territoryInterventions         UserTerritoryIntervention[]
+  UserTerritoryMemory            UserTerritoryMemory[]
+  territoryProfile               UserTerritoryProfile?
   territoryRelationships         UserTerritoryRelationship[]
   territoryRelationshipSnapshots UserTerritoryRelationshipSnapshot[]
-  relationshipTransitions        RelationshipTransition[]
-  relationshipExplanations       RelationshipExplanation[]
-
-  // Phase 7 Layer 7 additions
-  territoryInterventions      UserTerritoryIntervention[]
-  interventionScoreBreakdowns InterventionScoreBreakdown[]
-  interventionExplanations    InterventionExplanation[]
-  interventionOutcomes        InterventionOutcome[]
-
-  // Phase 8 Layer 8 additions (TCE)
-  listeningEvents       UserListeningEvent[]
-  territoryCultivations UserTerritoryCultivation[]
-
-  // Phase 9 LOFL Additions
-  longitudinalInterventions LongitudinalIntervention[]
-
-  // Auth relations
-  accounts Account[]
-  sessions Session[]
-
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  UserTrackMemory     UserTrackMemory[]
-  UserArtistMemory    UserArtistMemory[]
-  UserTerritoryMemory UserTerritoryMemory[]
+  territorySnapshots             UserTerritorySnapshot[]
+  UserTrackMemory                UserTrackMemory[]
+  agencyInteractionEvents        AgencyInteractionEvent[]
+  durabilityOutcomes             DurabilityOutcome[]
+  tesSnapshots                   TesSnapshot[]
+  durabilityEvents               DurabilityEvent[]
+  territoryRejections            TerritoryRejection[]
+  recommendationServeLogs        RecommendationServeLog[]
+  recommendationMemories         RecommendationMemory[]
+  recommendationRuns             RecommendationRun[]
 
   @@index([spotifyId])
+}
+
+/// ORCA LLM recommendation memory. This is feedback state, not LLM memory.
+model RecommendationMemory {
+  id             String   @id @default(cuid())
+  userId         String
+  artistId       String
+  status         String
+  sourceSnapshot String?
+  shownAt        DateTime?
+  openedAt       DateTime?
+  clickedAt      DateTime?
+  playedAt       DateTime?
+  savedAt        DateTime?
+  ignoredAt      DateTime?
+  hiddenAt       DateTime?
+  acceptedAt     DateTime?
+  replayedAt     DateTime?
+  rejectedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artistId])
+  @@index([userId])
+  @@index([artistId])
+  @@index([status])
+  @@index([updatedAt])
+}
+
+/// One row per LLM recommendation run for prompt/model/validation audit.
+model RecommendationRun {
+  id                 String   @id @default(cuid())
+  userId             String
+  promptVersion      String
+  model              String
+  candidateCount     Int
+  acceptedCount      Int
+  rejectedCount      Int
+  validationFailures String?
+  latencyMs          Int
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([model])
+}
+
+/// Change H: queryable serve log for Recommendation Surface calibration.
+/// One row per candidate placed in a surface bucket at materialize time.
+/// Raw distance components + readiness state must be reconstructable in one query.
+model RecommendationServeLog {
+  id                   String   @id @default(cuid())
+  userId               String
+  artistId             String
+  trackId              String?
+  /// comfort | expansion | leap
+  bucket               String
+  /// 0–1 distance components at serve time
+  audioDistance        Float
+  territoryDistance    Float
+  sceneDistance        Float
+  eraDistance          Float
+  languageDistance     Float
+  audioConfidence      String
+  territoryConfidence  String
+  sceneConfidence      String
+  eraConfidence        String
+  languageConfidence   String
+  compositeDistance    Float?
+  decisionScore        Float?
+  /// Full ReadinessState JSON at serve time
+  readinessStateJson   String
+  /// Optional DecisionProfile / score component dump
+  scoreComponentsJson  String?
+  durabilityOutcomeId  String?
+  tesSnapshotId        String?
+  createdAt            DateTime @default(now())
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([artistId])
+  @@index([bucket])
+  @@index([createdAt])
+  @@index([userId, bucket])
+}
+
+/// Part 11: explicit territory-wide "not for me" (distinct from track skip).
+model TerritoryRejection {
+  id             String   @id @default(cuid())
+  userId         String
+  /// Genre key or territory id suppressed for cooldown window.
+  territoryKey   String
+  createdAt      DateTime @default(now())
+  cooldownUntil  DateTime
+  sourceArtistId String?
+  /// Always territory_reject for this action (vs skip).
+  severity       String   @default("territory_reject")
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([territoryKey])
+  @@index([cooldownUntil])
+  @@index([userId, territoryKey])
+}
+
+/// Part 5: raw interaction log for Agency calibration (not the weighted score).
+/// Join to DurabilityOutcome once enough time has passed.
+model AgencyInteractionEvent {
+  id                       String             @id @default(cuid())
+  userId                   String
+  trackId                  String?
+  artistId                 String?
+  /// manual_click | full_play | autoplay | skip | search | library_save | ...
+  interactionType          String
+  timestamp                DateTime           @default(now())
+  /// Optional link to recommendation snapshot (Part 6 TES id when present).
+  recommendationSnapshotId String?
+  durabilityOutcomeId      String?
+  metadata                 String?
+  durabilityOutcome        DurabilityOutcome? @relation(fields: [durabilityOutcomeId], references: [id])
+  user                     User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([trackId])
+  @@index([interactionType])
+  @@index([timestamp])
+  @@index([durabilityOutcomeId])
+  @@index([recommendationSnapshotId])
+}
+
+/// Part 5/6: durability measurement state for a user×track (or artist) exposure.
+/// pending ≠ confirmed_zero — never conflate.
+model DurabilityOutcome {
+  id             String                   @id @default(cuid())
+  userId         String
+  trackId        String?
+  artistId       String?
+  /// pending | confirmed_positive | confirmed_zero
+  status         String                   @default("pending")
+  score          Float?
+  measuredAt     DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  events         AgencyInteractionEvent[]
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([trackId])
+  @@index([artistId])
+}
+
+/// Part 5: proposed Agency weight tables from recalibration.
+/// status draft = job output (reviewable). Never auto-promote to active.
+/// Human review must set approved → then optionally active. v0 stays live until then.
+model AgencyWeightProposal {
+  id          String   @id @default(cuid())
+  /// JSON Record<interactionType, weight>
+  weightsJson String
+  sampleSize  Int      @default(0)
+  /// draft | approved | rejected | active
+  status      String   @default("draft")
+  method      String   @default("mean_durability_by_type")
+  notes       String?
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Part 6: immutable TES (Taste Expansion Score) snapshot at recommendation time.
+/// NEVER update in place. Later knowledge → new snapshot with previousSnapshotId.
+/// Foreignness frozen here permanently. Durability lives in DurabilityEvent stream.
+model TesSnapshot {
+  id                 String           @id @default(cuid())
+  userId             String
+  trackId            String?
+  artistId           String?
+  territoryId        String?
+  createdAt          DateTime         @default(now())
+  /// Frozen Foreignness at recommendation time (Part 2 Familiarity already frozen pre-rec).
+  foreignness        Float
+  /// Durability AT snapshot time only (often 0 pending) — not updated later.
+  durabilityAtSnap   Float?
+  /// Durability state at snap: pending | confirmed_positive | confirmed_zero
+  durabilityStatus   String           @default("pending")
+  agency             Float
+  meaningfulness     Float?
+  /// Composite TES at snap (F×D×A×M style); D may be pending-neutral.
+  tesScore           Float
+  /// Prior Familiarity frozen pre-recommendation (Part 2).
+  familiarity        Float?
+  confidenceTag      String?
+  audioConfidenceTag String?
+  componentsJson     String?
+  /// Chain: new snapshot references old; never mutates old.
+  previousSnapshotId String?
+  previousSnapshot   TesSnapshot?     @relation("TesChain", fields: [previousSnapshotId], references: [id])
+  nextSnapshots      TesSnapshot[]    @relation("TesChain")
+  durabilityEvents   DurabilityEvent[]
+  user               User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([artistId])
+  @@index([trackId])
+  @@index([createdAt])
+  @@index([previousSnapshotId])
+}
+
+/// Part 6: append-only durability event stream, FK to original TesSnapshot.
+/// Durability computed by querying this stream — never by mutating TesSnapshot.
+model DurabilityEvent {
+  id             String      @id @default(cuid())
+  tesSnapshotId  String
+  userId         String
+  trackId        String?
+  artistId       String?
+  /// listen | return | skip | unprompted_replay | ...
+  eventType      String
+  /// true if listen was outside ORCA re-surface (genuine return)
+  unprompted     Boolean     @default(false)
+  timestamp      DateTime    @default(now())
+  metadata       String?
+  tesSnapshot    TesSnapshot @relation(fields: [tesSnapshotId], references: [id], onDelete: Cascade)
+  user           User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tesSnapshotId])
+  @@index([userId])
+  @@index([timestamp])
+  @@index([eventType])
 }
 
 model Account {
@@ -101,8 +325,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -112,41 +335,38 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ExploredArtist {
   id             String   @id @default(cuid())
   userId         String
-  artistId       String // Spotify artist ID
-  source         String // 'add-to-spotify' | 'mark-explored' | 'spotify-sync'
+  artistId       String
+  source         String
   exploredAt     DateTime @default(now())
   lastExploredAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId])
+  user           User     @relation(fields: [userId], references: [spotifyId])
 
   @@unique([userId, artistId])
   @@index([userId])
 }
 
 model Artist {
-  id             String            @id
-  spotifyId      String?           @unique
-  displayName    String
-  normalizedName String
-  rawGenres      String // serialized JSON
-  popularity     Int
-  followers      Int
-  imageUrl       String?
-  metadata       String? // serialized JSON
-  sourceEvidence String? // serialized JSON
-  embeddings     ArtistEmbedding[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  territoryMemberships TerritoryMembership[]
+  id                   String                @id
+  spotifyId            String?               @unique
+  displayName          String
+  normalizedName       String
+  rawGenres            String
+  popularity           Int
+  followers            Int
+  imageUrl             String?
+  metadata             String?
+  sourceEvidence       String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  embeddings           ArtistEmbedding[]
   territoryBridges     TerritoryBridge[]
+  territoryMemberships TerritoryMembership[]
 
   @@index([normalizedName])
   @@index([spotifyId])
@@ -155,83 +375,100 @@ model Artist {
 model ArtistEmbedding {
   id                   String   @id @default(cuid())
   artistId             String
-  artist               Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
   embeddingVersion     Int
-  audioVector          String? // serialized float array
-  textVector           String? // serialized float array
-  traitVector          String? // serialized float array
-  structuralVector     String? // serialized float array
-  fusedVector          String? // serialized float array
+  audioVector          String?
+  textVector           String?
+  traitVector          String?
+  structuralVector     String?
+  /// When confidenceTag=real_audio, fusedVector may hold projected AudioSignature JSON.
+  fusedVector          String?
   confidence           Float
+  /// Part 1: real_audio | tag_inferred | cold_start_default (nullable for legacy rows)
+  confidenceTag        String?
+  modelId              String?
   computedAt           DateTime @default(now())
   sourceDataHash       String?
   normalizationVersion Int
+  artist               Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@unique([artistId, embeddingVersion])
   @@index([artistId])
+  @@index([confidenceTag])
+}
+
+/// Write-once track-level audio embedding (Tier 1 — Deezer preview → embedder).
+/// Keyed by trackKey (e.g. deezer:123) + modelId. Never recompute on cache hit.
+model TrackEmbedding {
+  id              String   @id @default(cuid())
+  trackKey        String
+  deezerTrackId   String?
+  previewUrl      String?
+  embeddingVector String
+  embeddingDim    Int
+  /// Projected 6-d AudioSignature JSON for Expansion Intelligence.
+  signatureJson   String?
+  /// real_audio | tag_inferred | cold_start_default
+  confidenceTag   String
+  modelId         String
+  sourceDataHash  String?
+  computedAt      DateTime @default(now())
+
+  @@unique([trackKey, modelId])
+  @@index([deezerTrackId])
+  @@index([confidenceTag])
 }
 
 model TraitDefinition {
-  id         String  @id // e.g. "atmospheric"
+  id         String  @id
   family     String
-  formula    String? // Config / formula
+  formula    String?
   activeFlag Boolean @default(true)
   version    Int     @default(1)
 }
 
 model Territory {
-  id             String   @id
-  version        Int
-  centroidVector String // serialized float array
-  size           Int
-  density        Float
-  cohesion       Float
-  stability      Float
-  metadata       String? // serialized JSON
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  memberships                TerritoryMembership[]
-  bridgesAsA                 TerritoryBridge[]               @relation("BridgeA")
-  bridgesAsB                 TerritoryBridge[]               @relation("BridgeB")
-  similaritiesAsA            TerritorySimilarity[]           @relation("SimilarityA")
-  similaritiesAsB            TerritorySimilarity[]           @relation("SimilarityB")
-  snapshots                  TerritorySnapshot[]
-  territoryAffinities        UserTerritoryAffinity[]
-  territoryAffinitySnapshots UserTerritoryAffinitySnapshot[]
-
-  // Phase 6 Layer 6 additions
+  id                             String                              @id
+  version                        Int
+  centroidVector                 String
+  size                           Int
+  density                        Float
+  cohesion                       Float
+  stability                      Float
+  metadata                       String?
+  createdAt                      DateTime                            @default(now())
+  updatedAt                      DateTime                            @updatedAt
+  interventionExplanations       InterventionExplanation[]
+  interventionOutcomes           InterventionOutcome[]
+  interventionScoreBreakdowns    InterventionScoreBreakdown[]
+  longitudinalInterventions      LongitudinalIntervention[]
+  relationshipExplanations       RelationshipExplanation[]
+  relationshipTransitions        RelationshipTransition[]
+  bridgesAsB                     TerritoryBridge[]                   @relation("BridgeB")
+  bridgesAsA                     TerritoryBridge[]                   @relation("BridgeA")
+  memberships                    TerritoryMembership[]
+  similaritiesAsB                TerritorySimilarity[]               @relation("SimilarityB")
+  similaritiesAsA                TerritorySimilarity[]               @relation("SimilarityA")
+  snapshots                      TerritorySnapshot[]
+  territoryAffinities            UserTerritoryAffinity[]
+  territoryAffinitySnapshots     UserTerritoryAffinitySnapshot[]
+  territoryCultivations          UserTerritoryCultivation[]
+  territoryInterventions         UserTerritoryIntervention[]
+  UserTerritoryMemory            UserTerritoryMemory[]
   territoryRelationships         UserTerritoryRelationship[]
   territoryRelationshipSnapshots UserTerritoryRelationshipSnapshot[]
-  relationshipTransitions        RelationshipTransition[]
-  relationshipExplanations       RelationshipExplanation[]
-
-  // Phase 7 Layer 7 additions
-  territoryInterventions      UserTerritoryIntervention[]
-  interventionScoreBreakdowns InterventionScoreBreakdown[]
-  interventionExplanations    InterventionExplanation[]
-  interventionOutcomes        InterventionOutcome[]
-
-  // Phase 8 Layer 8 additions (TCE)
-  territoryCultivations UserTerritoryCultivation[]
-  UserTerritoryMemory   UserTerritoryMemory[]
-
-  // Phase 9 LOFL additions
-  longitudinalInterventions LongitudinalIntervention[]
 }
 
 model TerritoryMembership {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   territoryId        String
   artistId           String
   membershipStrength Float
   confidence         Float
-  role               String // "CORE", "BORDER", "BRIDGE", etc.
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
-  artist    Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  role               String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  artist             Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  territory          Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
 
   @@unique([territoryId, artistId])
   @@index([territoryId])
@@ -239,17 +476,16 @@ model TerritoryMembership {
 }
 
 model TerritoryBridge {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   artistId       String
   territoryAId   String
   territoryBId   String
   bridgeStrength Float
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  artist     Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
-  territoryA Territory @relation("BridgeA", fields: [territoryAId], references: [id], onDelete: Cascade)
-  territoryB Territory @relation("BridgeB", fields: [territoryBId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  territoryB     Territory @relation("BridgeB", fields: [territoryBId], references: [id], onDelete: Cascade)
+  territoryA     Territory @relation("BridgeA", fields: [territoryAId], references: [id], onDelete: Cascade)
+  artist         Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@unique([artistId, territoryAId, territoryBId])
   @@index([artistId])
@@ -258,16 +494,15 @@ model TerritoryBridge {
 }
 
 model TerritorySimilarity {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   territoryAId String
   territoryBId String
   similarity   Float
   distance     Float
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  territoryA Territory @relation("SimilarityA", fields: [territoryAId], references: [id], onDelete: Cascade)
-  territoryB Territory @relation("SimilarityB", fields: [territoryBId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  territoryB   Territory @relation("SimilarityB", fields: [territoryBId], references: [id], onDelete: Cascade)
+  territoryA   Territory @relation("SimilarityA", fields: [territoryAId], references: [id], onDelete: Cascade)
 
   @@unique([territoryAId, territoryBId])
   @@index([territoryAId])
@@ -275,19 +510,18 @@ model TerritorySimilarity {
 }
 
 model TerritorySnapshot {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   territoryId    String
-  snapshotDate   DateTime @default(now())
+  snapshotDate   DateTime  @default(now())
   version        Int
-  centroidVector String // serialized float array
+  centroidVector String
   size           Int
   density        Float
   cohesion       Float
   stability      Float
-  metadata       String? // serialized JSON
-  createdAt      DateTime @default(now())
-
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  metadata       String?
+  createdAt      DateTime  @default(now())
+  territory      Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
 
   @@index([territoryId])
 }
@@ -295,13 +529,12 @@ model TerritorySnapshot {
 model UserTerritoryProfile {
   id                 String   @id @default(cuid())
   userId             String   @unique
-  occupancyVector    String // Serialized JSON of { shortTerm: { [tId]: score }, mediumTerm: { [tId]: score }, longTerm: { [tId]: score } }
+  occupancyVector    String
   diversityScore     Float
   concentrationScore Float
   entropyScore       Float
   updatedAt          DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user               User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 }
 
 model UserTerritorySnapshot {
@@ -310,8 +543,7 @@ model UserTerritorySnapshot {
   territoryId String
   occupancy   Float
   timestamp   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([territoryId])
@@ -325,10 +557,9 @@ model TerritoryMomentum {
   previous    Float
   current     Float
   delta       Float
-  velocity    Float // Change rate per elapsed time/update
+  velocity    Float
   updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -338,11 +569,10 @@ model TerritoryAdoption {
   id               String   @id @default(cuid())
   userId           String
   territoryId      String
-  explorationCount Int // Count of explored artists in this territory
-  adoptionScore    Float // Metric reflecting sustained engagement
+  explorationCount Int
+  adoptionScore    Float
   lastActivity     DateTime
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -352,33 +582,31 @@ model TerritoryFamiliarity {
   id               String @id @default(cuid())
   userId           String
   territoryId      String
-  familiarityScore Float // Metric combining listening depth & artist breadth
-  confidence       Float // Confidence based on sample size of artists
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  familiarityScore Float
+  confidence       Float
+  user             User   @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
 }
 
 model UserTerritoryAffinity {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   userId                String
   territoryId           String
-  compatibilityScore    Float    @default(0.0)
-  culturalCompatibility Float    @default(0.0)
-  sensoryCompatibility  Float    @default(0.0)
-  structuralDistance    Float    @default(0.0)
-  accessibility         Float    @default(0.0)
-  confidence            Float    @default(0.0)
-  occupancy             Float    @default(0.0)
-  hiddenPotential       Float    @default(0.0)
-  explanation           String? // serialized JSON structure or string
-  computedAt            DateTime @default(now())
-  modelVersion          Int      @default(1)
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  compatibilityScore    Float     @default(0.0)
+  culturalCompatibility Float     @default(0.0)
+  sensoryCompatibility  Float     @default(0.0)
+  structuralDistance    Float     @default(0.0)
+  accessibility         Float     @default(0.0)
+  confidence            Float     @default(0.0)
+  occupancy             Float     @default(0.0)
+  hiddenPotential       Float     @default(0.0)
+  explanation           String?
+  computedAt            DateTime  @default(now())
+  modelVersion          Int       @default(1)
+  territory             Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -386,16 +614,15 @@ model UserTerritoryAffinity {
 }
 
 model UserTerritoryAffinitySnapshot {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   userId             String
   territoryId        String
-  compatibilityScore Float    @default(0.0)
-  componentScores    String // serialized JSON of all components
+  compatibilityScore Float     @default(0.0)
+  componentScores    String
   confidence         Float
-  timestamp          DateTime @default(now())
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  timestamp          DateTime  @default(now())
+  territory          Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([territoryId])
@@ -405,25 +632,23 @@ model UserTerritoryAffinitySnapshot {
 model UserBanditState {
   id              String   @id @default(cuid())
   userId          String   @unique
-  parameterString String // serialized JSON of BanditParameters { a0: { A, b }, a1: { A, b }, a2: { A, b } }
+  parameterString String
   updatedAt       DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 }
 
 model BanditDecision {
   id               String   @id @default(cuid())
   userId           String
   decisionId       String   @unique
-  contextVector    String // serialized float array [entropy, skipRate, playbackContext, timeOfDay]
-  chosenAction     Int // 0 = Exploit, 1 = Adjacent Explore, 2 = Deep Explore
-  ucbValues        String // serialized JSON mapping action index -> UCB value
+  contextVector    String
+  chosenAction     Int
+  ucbValues        String
   reward           Float    @default(0.0)
   feedbackReceived Boolean  @default(false)
   timestamp        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([timestamp])
@@ -431,39 +656,58 @@ model BanditDecision {
 }
 
 model UserTerritoryRelationship {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   userId              String
   territoryId         String
-  currentState        String // "UNEXPLORED", "CURIOUS", "EXPLORING", "RESIDENT", "DORMANT", "RETURNING", "REJECTED", "RESISTANT", "STABILIZED"
-  stateConfidence     Float    @default(0.0)
-  residenceStrength   Float    @default(0.0)
-  explorationStrength Float    @default(0.0)
-  curiosityStrength   Float    @default(0.0)
-  resistanceStrength  Float    @default(0.0)
-  dormancyStrength    Float    @default(0.0)
-  returnStrength      Float    @default(0.0)
-  emergenceStrength   Float    @default(0.0)
-  lastUpdatedAt       DateTime @default(now()) @updatedAt
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  currentState        String
+  stateConfidence     Float     @default(0.0)
+  residenceStrength   Float     @default(0.0)
+  explorationStrength Float     @default(0.0)
+  curiosityStrength   Float     @default(0.0)
+  resistanceStrength  Float     @default(0.0)
+  dormancyStrength    Float     @default(0.0)
+  returnStrength      Float     @default(0.0)
+  emergenceStrength   Float     @default(0.0)
+  lastUpdatedAt       DateTime  @default(now()) @updatedAt
+  territory           Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user                User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
   @@index([territoryId])
 }
 
-model UserTerritoryRelationshipSnapshot {
+/// Phase 2 P0-2 (Option C.ii): GRE's own persisted state, separate from
+/// UserTerritoryRelationship (now owned solely by Layer 6). Keyed by raw
+/// genre string, not Territory_v2_* id. Eliminates the vocabulary
+/// contamination of userTerritoryRelationship — see
+/// docs/architecture/decisions/gre-vs-layer6.md.
+model UserGenreRelationshipState {
   id              String   @id @default(cuid())
+  userId          String
+  genre           String
+  currentState    String
+  stateConfidence Float    @default(0.0)
+  previousStage   String?
+  momentum        Float?
+  lastUpdatedAt   DateTime @default(now()) @updatedAt
+  user            User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+
+  @@unique([userId, genre])
+  @@index([userId])
+  @@index([genre])
+}
+
+model UserTerritoryRelationshipSnapshot {
+  id              String    @id @default(cuid())
   userId          String
   territoryId     String
   state           String
-  stateConfidence Float    @default(0.0)
-  componentScores String // serialized JSON mapping score name -> score value
-  timestamp       DateTime @default(now())
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  stateConfidence Float     @default(0.0)
+  componentScores String
+  timestamp       DateTime  @default(now())
+  territory       Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([territoryId])
@@ -471,16 +715,15 @@ model UserTerritoryRelationshipSnapshot {
 }
 
 model RelationshipTransition {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   territoryId   String
   previousState String
   currentState  String
-  timestamp     DateTime @default(now())
-  reasonCodes   String // serialized JSON array of strings
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  timestamp     DateTime  @default(now())
+  reasonCodes   String
+  territory     Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([territoryId])
@@ -488,14 +731,13 @@ model RelationshipTransition {
 }
 
 model RelationshipExplanation {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   userId             String
   territoryId        String
-  explanationPayload String // serialized JSON structure containing human-readable text, etc.
-  updatedAt          DateTime @updatedAt
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  explanationPayload String
+  updatedAt          DateTime  @updatedAt
+  territory          Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -503,18 +745,17 @@ model RelationshipExplanation {
 }
 
 model UserTerritoryIntervention {
-  id                     String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   userId                 String
   territoryId            String
-  interventionType       String // "INTRODUCE", "BRIDGE", "REINFORCE", "REINTRODUCE", "ACCELERATE", "EXPAND_OUTWARD", "HOLD"
+  interventionType       String
   interventionScore      Float
   confidence             Float
   expectedAdoptionImpact Float
   expectedRejectionRisk  Float
-  createdAt              DateTime @default(now())
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  createdAt              DateTime  @default(now())
+  territory              Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user                   User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -522,7 +763,7 @@ model UserTerritoryIntervention {
 }
 
 model InterventionScoreBreakdown {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   userId             String
   territoryId        String
   introScore         Float
@@ -532,10 +773,9 @@ model InterventionScoreBreakdown {
   accelerateScore    Float
   expandOutwardScore Float
   holdScore          Float
-  updatedAt          DateTime @updatedAt
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  updatedAt          DateTime  @updatedAt
+  territory          Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -543,14 +783,13 @@ model InterventionScoreBreakdown {
 }
 
 model InterventionExplanation {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   userId             String
   territoryId        String
-  explanationPayload String // serialized JSON structure
-  updatedAt          DateTime @updatedAt
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  explanationPayload String
+  updatedAt          DateTime  @updatedAt
+  territory          Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -558,23 +797,21 @@ model InterventionExplanation {
 }
 
 model InterventionOutcome {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
   territoryId      String
   interventionType String
   outcomeLabel     String
   adoptionChange   Float
   rejectionChange  Float
-  timestamp        DateTime @default(now())
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  timestamp        DateTime  @default(now())
+  territory        Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([territoryId])
 }
 
-// Phase 8 TME additions
 model UserTrackMemory {
   id               String   @id @default(cuid())
   userId           String
@@ -584,12 +821,11 @@ model UserTrackMemory {
   explorationDepth Float    @default(0.0)
   persistence      Float    @default(0.0)
   memoryStrength   Float    @default(0.0)
-  memoryState      String   @default("UNKNOWN") // UNKNOWN, KNOWN, FAMILIAR, INTERNALIZED
+  memoryState      String   @default("UNKNOWN")
   lastReinforced   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, trackId])
   @@index([userId])
@@ -604,33 +840,31 @@ model UserArtistMemory {
   explorationDepth Float    @default(0.0)
   persistence      Float    @default(0.0)
   memoryStrength   Float    @default(0.0)
-  memoryState      String   @default("UNKNOWN") // UNKNOWN, KNOWN, FAMILIAR, INTERNALIZED
+  memoryState      String   @default("UNKNOWN")
   lastReinforced   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, artistId])
   @@index([userId])
 }
 
 model UserTerritoryMemory {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
   territoryId      String
-  familiarity      Float    @default(0.0)
-  agency           Float    @default(0.0)
-  explorationDepth Float    @default(0.0)
-  persistence      Float    @default(0.0)
-  memoryStrength   Float    @default(0.0)
-  memoryState      String   @default("UNKNOWN") // UNKNOWN, KNOWN, FAMILIAR, INTERNALIZED
-  lastReinforced   DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  familiarity      Float     @default(0.0)
+  agency           Float     @default(0.0)
+  explorationDepth Float     @default(0.0)
+  persistence      Float     @default(0.0)
+  memoryStrength   Float     @default(0.0)
+  memoryState      String    @default("UNKNOWN")
+  lastReinforced   DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  territory        Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
@@ -638,21 +872,17 @@ model UserTerritoryMemory {
 }
 
 model UserListeningEvent {
-  id          String  @id @default(cuid())
-  userId      String
-  artistId    String
-  territoryId String?
-  eventType   String // "PLAY", "COMPLETE", "SKIP", "SAVE", "PLAYLIST_ADD", "REPLAY"
-
-  // TEM Phase Additions
-  trackId        String?
+  id             String   @id @default(cuid())
+  userId         String
+  artistId       String
+  territoryId    String?
+  eventType      String
+  timestamp      DateTime @default(now())
   durationMs     Int?
+  initiationType String?
   sessionId      String?
-  initiationType String? // "SEARCH", "PLAYLIST", "AUTOPLAY", "RECOMMENDATION", "ARTIST_PAGE", etc.
-
-  timestamp DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  trackId        String?
+  user           User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@index([userId])
   @@index([territoryId])
@@ -660,42 +890,39 @@ model UserListeningEvent {
 }
 
 model UserTerritoryCultivation {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   userId              String
   territoryId         String
-  familiarityScore    Float    @default(0.0)
-  fluencyScore        Float    @default(0.0)
-  adoptionProbability Float    @default(0.0)
-  exposureSchedule    String // serialized JSON list of weekly exposure rules
-  adoptionState       String // "UNEXPLORED", "CULTIVATING", "MORATORIUM", "ADOPTED", "DECLINED"
-  confidence          Float    @default(0.0)
-  lastExposureAt      DateTime @default(now())
-  updatedAt           DateTime @default(now()) @updatedAt
-
-  user      User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  familiarityScore    Float     @default(0.0)
+  fluencyScore        Float     @default(0.0)
+  adoptionProbability Float     @default(0.0)
+  exposureSchedule    String
+  adoptionState       String
+  confidence          Float     @default(0.0)
+  lastExposureAt      DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+  territory           Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user                User      @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
 
   @@unique([userId, territoryId])
   @@index([userId])
   @@index([territoryId])
 }
 
-// Phase 9 LOFL Additions
 model LongitudinalIntervention {
-  id                   String   @id @default(cuid())
-  userId               String
-  targetTerritoryId    String
-  pathwayHash          String
-  state                String   @default("ACTIVE") // ACTIVE, MATURING, RESOLVED_SUCCESS, RESOLVED_FAILURE, ARCHIVED, RETRY_CANDIDATE
-  maturationDate       DateTime
-  baselineProbability  Float    @default(0.0)
-  expectedOutcome      Float    @default(0.0)
-  createdAt            DateTime @default(now())
-  
-  user                 User     @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
-  territory            Territory @relation(fields: [targetTerritoryId], references: [id], onDelete: Cascade)
-  events               OutcomeEvent[]
-  attribution          LOFLAttribution?
+  id                  String           @id @default(cuid())
+  userId              String
+  targetTerritoryId   String
+  pathwayHash         String
+  state               String           @default("ACTIVE")
+  maturationDate      DateTime
+  baselineProbability Float            @default(0.0)
+  expectedOutcome     Float            @default(0.0)
+  createdAt           DateTime         @default(now())
+  attribution         LOFLAttribution?
+  territory           Territory        @relation(fields: [targetTerritoryId], references: [id], onDelete: Cascade)
+  user                User             @relation(fields: [userId], references: [spotifyId], onDelete: Cascade)
+  events              OutcomeEvent[]
 
   @@index([userId])
   @@index([targetTerritoryId])
@@ -703,38 +930,36 @@ model LongitudinalIntervention {
 }
 
 model OutcomeEvent {
-  id               String   @id @default(cuid())
-  interventionId   String
-  eventType        String   // SEARCH, PLAYLIST_ADD, ORGANIC_PLAY, CONCERT
-  agencyWeight     Float
-  timestamp        DateTime @default(now())
-
-  intervention     LongitudinalIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  id             String                   @id @default(cuid())
+  interventionId String
+  eventType      String
+  agencyWeight   Float
+  timestamp      DateTime                 @default(now())
+  intervention   LongitudinalIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
 
   @@index([interventionId])
 }
 
 model LOFLAttribution {
-  id               String   @id @default(cuid())
-  interventionId   String   @unique
-  totalRawOutcome  Float    @default(0.0)
-  exogenousCredit  Float    @default(0.0)
-  orcaCredit       Float    @default(0.0)
-  confidence       Float    @default(0.0)
-  resolvedAt       DateTime @default(now())
-
-  intervention     LongitudinalIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  id              String                   @id @default(cuid())
+  interventionId  String                   @unique
+  totalRawOutcome Float                    @default(0.0)
+  exogenousCredit Float                    @default(0.0)
+  orcaCredit      Float                    @default(0.0)
+  confidence      Float                    @default(0.0)
+  resolvedAt      DateTime                 @default(now())
+  intervention    LongitudinalIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
 }
 
 model GlobalPathwayTemplate {
-  id               String   @id @default(cuid())
-  sourceTerritory  String
-  targetTerritory  String
-  pathwayNodes     String   // serialized JSON array of artist IDs
-  successCount     Int      @default(0)
-  failureCount     Int      @default(0)
-  conversionRate   Float    @default(0.0)
-  lastUpdated      DateTime @updatedAt
+  id              String   @id @default(cuid())
+  sourceTerritory String
+  targetTerritory String
+  pathwayNodes    String
+  successCount    Int      @default(0)
+  failureCount    Int      @default(0)
+  conversionRate  Float    @default(0.0)
+  lastUpdated     DateTime @updatedAt
 
   @@unique([sourceTerritory, targetTerritory])
 }

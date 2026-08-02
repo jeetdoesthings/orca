@@ -176,13 +176,91 @@ canvas:active {
   bottom: 24px;
   left: 24px;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.3);
-  letter-spacing: 0.04em;
-  line-height: 1.6;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.38);
+  letter-spacing: 0.02em;
+  line-height: 1.55;
   pointer-events: none;
   z-index: 10;
-  transition: all 0.3s ease;
+}
+
+/* Shared HUD pills (depth + unexplored) */
+.orca-hud-pill-wrap {
+  position: fixed;
+  z-index: 60;
+  pointer-events: auto;
+}
+
+.orca-hud-pill-wrap--center {
+  bottom: 28px;
+  left: 50%;
+  /* keep translateX on wrap only — never animate transform here */
+  transform: translateX(-50%);
+}
+
+.orca-hud-pill-wrap--right {
+  bottom: 28px;
+  right: 24px;
+}
+
+.orca-hud-pill-btn {
+  appearance: none;
+  margin: 0;
+  padding: 10px 22px;
+  min-width: 108px;
+  border-radius: 100px;
+  border: 1px solid rgba(17, 17, 24, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #111118;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.orca-hud-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(17, 17, 24, 0.18);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transform: scale(1.03);
+}
+
+.orca-hud-pill-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.orca-hud-pill-btn.is-active {
+  background: #111118;
+  color: #ffffff;
+  border-color: rgba(17, 17, 24, 0.9);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+.orca-hud-pill-btn.is-active:hover {
+  background: #1a1a22;
+  border-color: #1a1a22;
+  color: #ffffff;
+}
+
+/* Hover scale lives on the button only so center wrap translateX stays intact */
+.orca-hud-pill-wrap--center .orca-hud-pill-btn:hover {
+  transform: scale(1.03);
+}
+
+.orca-hud-pill-wrap--center .orca-hud-pill-btn:active {
+  transform: scale(0.98);
 }
 
 .orca-expansion-status {
@@ -360,9 +438,24 @@ canvas:active {
   }
 
   .orca-stats {
-    bottom: 56px;
+    bottom: 72px;
     left: 12px;
-    font-size: 9px;
+    font-size: 11px;
+  }
+
+  .orca-hud-pill-wrap--center {
+    bottom: 20px;
+  }
+
+  .orca-hud-pill-wrap--right {
+    bottom: 20px;
+    right: 12px;
+  }
+
+  .orca-hud-pill-btn {
+    padding: 9px 18px;
+    min-width: 96px;
+    font-size: 12px;
   }
 
   .orca-expansion-status {
@@ -400,18 +493,6 @@ canvas:active {
     max-width: 160px;
   }
 
-  .taste-summary-text {
-    font-size: 11px !important;
-    bottom: 12% !important;
-    width: 90% !important;
-  }
-
-  .orca-frontier-toggle-btn {
-    bottom: 14px !important;
-    right: 12px !important;
-    padding: 10px 16px !important;
-    font-size: 11px !important;
-  }
 }
 
 /* Prevent auto-zooming on search input on mobile viewports */
@@ -901,4 +982,3 @@ canvas:active {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-

@@ -1,3 +1,5 @@
+import type { DecisionProfile } from '@/lib/ocse/ocse-types';
+
 /**
  * Core type definitions for the ORCA graph system.
  * All graph data structures, node/edge types, and layout interfaces.
@@ -23,7 +25,31 @@ export interface OrcaNode {
   weight: number;                               // User's listening weight 0-1
   state: 'explored' | 'frontier' | 'dormant';
   audioSignature: AudioSignature;
-  
+  /**
+   * Part 1 / RULE-15 honesty flag (confidence tag).
+   * real_audio | tag_inferred | cold_start_default
+   * Legacy REAL | SYNTHETIC | MISSING still accepted by normalizers.
+   */
+  /** Metadata completeness (or legacy audio-era aliases). */
+  audioSource?:
+    | 'high_confidence'
+    | 'partial_confidence'
+    | 'low_confidence'
+    | 'real_audio'
+    | 'tag_inferred'
+    | 'cold_start_default'
+    | 'REAL'
+    | 'SYNTHETIC'
+    | 'MISSING';
+  /** Preferred name for audioSource (same values). */
+  confidenceTag?:
+    | 'high_confidence'
+    | 'partial_confidence'
+    | 'low_confidence'
+    | 'real_audio'
+    | 'tag_inferred'
+    | 'cold_start_default';
+
   // Phase 3 Layer 3 weight components
   weightShort?: number;
   weightMedium?: number;
@@ -53,44 +79,52 @@ export interface OrcaNode {
                     | 'STABILIZED' | 'DORMANT' | 'RETURNING' | 'RESISTANT'
                     | 'REJECTED' | 'EMERGING';
   memoryStrength?: number | null;   // 0-100 from user-artist memory
-  isInActiveJourney?: boolean;
-  journeyRole?: 'ANCHOR' | 'BRIDGE' | 'INTERMEDIATE' | 'DESTINATION' | null;
   territory?: string;               // territory display name
 
-  // V4 Dynamic Artist State Engine fields
+  // Dynamic artist state fields
   bridgeArtist?: boolean;
   gatewayArtist?: boolean;
-  destinationArtist?: boolean;
   alreadyIntegrated?: boolean;
-  activeJourneyStep?: number | null;
   recommendedNext?: boolean;
   
-  // OCSE Candidate Intelligence Profile & Semantic Classification Role
-  candidateIntelligence?: CandidateIntelligence;
-  semanticRole?: 'REACHABLE' | 'BRIDGE' | 'JOURNEY_TARGET' | 'RECOVERY' | 'HIDDEN_POTENTIAL' | 'IDENTITY_REINFORCEMENT' | 'DORMANT_MEMORY';
-  
+  // OCSE Semantic Classification Role
+  semanticRole?: 'REACHABLE' | 'BRIDGE' | 'RECOMMENDED_EXPANSION' | 'RECOVERY' | 'HIDDEN_POTENTIAL' | 'IDENTITY_REINFORCEMENT' | 'DORMANT_MEMORY';
+  candidateEvidence?: DecisionProfile;
   discoveredRecently?: boolean;
   memoryContribution?: number;
-  availableActions?: {
+  availableActions?: string[] | {
     canExplore: boolean;
     canSave: boolean;
     canListen: boolean;
   };
-}
-
-export interface CandidateIntelligence {
-  compatibility: number;
-  readiness: number;
-  relationship: number;
-  journeyValue: number;
-  identityValue: number;
-  memoryPotential: number;
-  expansionPotential: number;
-  recoveryPotential: number;
-  bridgeUtility: number;
-  mindsetMatch: number;
-  longitudinalConfidence: number;
-  overallConfidence: number;
+  reachable?: boolean;
+  visible?: boolean;
+  confidenceBand?: string;
+  reasoning?: string[];
+  /** OCSE decision reasons — why this candidate was recommended */
+  decisionReasons?: string[];
+  /** OCSE explanation — human-readable rationale for the decision */
+  explanation?: string[];
+  expansionDistance?: number;
+  expansionBand?: 'CORE' | 'FAMILIAR' | 'COMFORT_EDGE' | 'EXPANSION' | 'OUTER_EDGE' | 'UNKNOWN';
+  /** Change A: disaggregated distances (JSON-safe on materialize). */
+  distanceComponents?: import('@/lib/expansion/distance-components').DisaggregatedDistance;
+  /** Change C/E: which Recommendation Surface bucket this node was assigned to. */
+  readinessBucket?: 'comfort' | 'expansion' | 'leap';
+  /** Change E: visual emphasis for active tier (1 = full, lower = de-emphasized). */
+  tierEmphasis?: number;
+  /** True when node is in the active Shore/Shallow/Deep/Alo band. */
+  inActiveDepth?: boolean;
+  /** adjacency | leap_seek | shore_seek retrieval path. */
+  retrievalPath?: 'adjacency' | 'leap_seek' | 'shore_seek';
+  /** Territory key for leap_seek / shore_seek candidates. */
+  sourceTerritory?: string;
+  projectionMetadata?: {
+    expansionDistance: number;
+    expansionBand: 'CORE' | 'FAMILIAR' | 'COMFORT_EDGE' | 'EXPANSION' | 'OUTER_EDGE' | 'UNKNOWN';
+    /** True when the display distance was rank-remapped due to collapse / empty band. */
+    displayDistanceRemapped?: boolean;
+  };
 }
 
 /** An edge in the orca graph — a relationship between two artists */
@@ -99,7 +133,6 @@ export interface OrcaEdge {
   target: string | OrcaNode;  // Node ID or resolved node reference
   type: 'related' | 'genre' | 'audio-similar';
   weight: number;                 // 0-1 relationship strength
-  isJourneyEdge?: boolean;        // Phase 3.2: Part of active journey
 }
 
 export interface GenreRelationship {
@@ -117,14 +150,7 @@ export interface GenreIdentity {
   confidence: number;
 }
 
-export interface GenreJourney {
-  active: boolean;
-  available: boolean;
-  destination: string | null;
-  milestone: number | null;
-  progress: number;
-  confidence: number;
-}
+
 
 export interface GenreGrowth {
   tasteMemory: number;
@@ -152,7 +178,6 @@ export interface GenreDiscovery {
 }
 
 export interface GenreOpportunities {
-  journeyAvailable: boolean;
   recoveryAvailable: boolean;
   expansionOpportunity: boolean;
   hiddenPotential: boolean;
@@ -163,14 +188,11 @@ export interface GenreHistory {
   firstDiscovery: string | null;
   latestOrganicVisit: string | null;
   previousInterventions: number;
-  successfulJourneys: number;
-  failedJourneys: number;
   longitudinalState: string;
 }
 
 export interface GenreConfidence {
   relationship: number;
-  journey: number;
   expansion: number;
   identity: number;
   mindset: number;
@@ -178,9 +200,6 @@ export interface GenreConfidence {
 }
 
 export interface GenreAvailableActions {
-  canStartJourney: boolean;
-  canContinueJourney: boolean;
-  canRecoverJourney: boolean;
   canExpand: boolean;
   canPause: boolean;
   canResume: boolean;
@@ -202,7 +221,6 @@ export interface GenreRegion {
   // GIA Snapshot layers
   relationship?: GenreRelationship;
   identity?: GenreIdentity;
-  journey?: GenreJourney;
   growth?: GenreGrowth;
   currentSession?: GenreCurrentSession;
   discovery?: GenreDiscovery;
@@ -222,7 +240,7 @@ export interface OrcaGraph {
 export interface ObservationAction {
   name: string;            // e.g. "START_PATHWAY", "FOLLOW_ARTIST"
   label: string;           // button text
-  endpoint: string;        // e.g. "/api/journeys"
+  endpoint: string;        // e.g. "/api/world/regenerate"
   method: "POST" | "GET";
   payload?: any;           // optional body for POST
 }
@@ -238,7 +256,6 @@ export interface Observation {
   relatedEntities: {
     genreId?: string;
     artistId?: string;
-    journeyId?: string;
   };
   availableActions: ObservationAction[]; // actions mapping
   ttl: number;             // seconds before auto-expire

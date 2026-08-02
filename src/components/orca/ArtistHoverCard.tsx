@@ -9,10 +9,12 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useOrcaStore } from '@/store/orca';
+import { useObservationStore } from '@/store/feedback';
 import { getGenreColor, normaliseGenre } from '@/lib/graph/genre-normaliser';
 import type { OrcaNode } from '@/lib/graph/types';
 import { sharedDisplacedPositions } from './NodeField';
 import { getCachedArtistData } from './ArtistImageLayer';
+import { translateSemanticRole } from '@/lib/product-language';
 
 function HoverAvatar({ artist, index }: { artist: OrcaNode; index: number }) {
   const [imageUrl, setImageUrl] = useState(artist.imageUrl || '');
@@ -185,14 +187,25 @@ export function ArtistHoverCard() {
     };
   }, [activeNode]);
 
-  // Find explored nodes in the same biome that "led here"
+  // Prefer real seed links (adjacentTo) — same artists that draw the edges
   const adjacentExplored = useMemo(() => {
     if (!debouncedNode || !graph || debouncedNode.state !== 'frontier') return [];
+    if (debouncedNode.adjacentTo && debouncedNode.adjacentTo.length > 0) {
+      const fromSeeds = debouncedNode.adjacentTo
+        .map((id) => graph.nodes.find((n) => n.id === id))
+        .filter((n): n is OrcaNode => n != null)
+        .slice(0, 5);
+      if (fromSeeds.length > 0) return fromSeeds;
+    }
+    // Fallback: same-genre explored (legacy snapshots without adjacentTo)
     const primaryGenre = normaliseGenre(debouncedNode.genres);
-    return graph.nodes.filter(n =>
-      n.state === 'explored' &&
-      normaliseGenre(n.genres) === primaryGenre
-    ).slice(0, 3);
+    return graph.nodes
+      .filter(
+        (n) =>
+          n.state === 'explored' &&
+          normaliseGenre(n.genres) === primaryGenre,
+      )
+      .slice(0, 3);
   }, [debouncedNode, graph]);
 
   // Update position from shared displaced positions each frame
@@ -239,10 +252,25 @@ export function ArtistHoverCard() {
 
       // 3. Open Spotify in new tab if selected
       if (action === 'add-to-spotify') {
-        window.open(`https://open.spotify.com/artist/${debouncedNode.id}`, '_blank');
+        window.open(`https://open.spotify.com/search/${encodeURIComponent(debouncedNode.name)}`, '_blank');
       }
 
       setExploreStatus('done');
+
+      // Add a client-side observation notification
+      useObservationStore.getState().addObservation({
+        id: `obs_explored_${debouncedNode.id}_${Date.now()}`,
+        type: 'ArtistExplored',
+        summary: `Explored ${debouncedNode.name}`,
+        detail: `Successfully added ${debouncedNode.name} to your taste graph.`,
+        priority: 2,
+        confidence: 1.0,
+        timestamp: new Date().toISOString(),
+        relatedEntities: { artistId: debouncedNode.id },
+        availableActions: [],
+        ttl: 1800,
+        status: 'active'
+      });
     } catch (err) {
       console.error('[HoverCard Explore] Exploration failed, reverting:', err);
       // Revert optimistic transition
@@ -304,23 +332,26 @@ export function ArtistHoverCard() {
           <div className="orca-hover-card-info" style={{ flex: 1 }}>
             <div className="orca-hover-card-name" style={{ fontSize: '13.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>{debouncedNode.name}</span>
-              {isFrontier && (
-                <span
-                  style={{
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    background: 'rgba(56, 189, 248, 0.12)',
-                    color: '#0ea5e9',
-                    border: '1px solid rgba(56, 189, 248, 0.25)',
-                  }}
-                >
-                  Unexplored
-                </span>
-              )}
+              {isFrontier && (() => {
+                const trans = translateSemanticRole(debouncedNode.semanticRole);
+                return (
+                  <span
+                    style={{
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: `${trans.badgeColor}18`,
+                      color: trans.badgeColor,
+                      border: `1px solid ${trans.badgeColor}33`,
+                    }}
+                  >
+                    {trans.label}
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Genre Pills */}

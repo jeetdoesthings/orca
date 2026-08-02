@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { getCanonicalArtistName, getCanonicalArtistId } from '@/lib/identity';
+import { getCanonicalArtistName } from '@/lib/identity';
 import type { AudioSignature } from '@/lib/graph/types';
 import { getActiveTraits } from '@/lib/profile/trait-registry';
 import { computeTraitScore } from '@/lib/profile/trait-inference';
@@ -134,33 +134,21 @@ export async function processArtistLatentRepresentation(params: {
 }) {
   const { spotifyId, name, genres, popularity, followers, imageUrl, audioSignature, bio } = params;
 
-  // Step 1: Canonicalize Artist Identity
+  // Step 1: Canonicalize Artist Identity + collision-safe upsert.
+  // Never use getCanonicalArtistId (lastfm-*) as create PK when a Spotify id
+  // exists — that caused P2002 when lastfm-kanyewest already occupied `id`.
   const canonicalName = getCanonicalArtistName(name);
-  const canonicalId = getCanonicalArtistId(canonicalName, spotifyId || undefined);
-  const normalizedName = canonicalName.toLowerCase();
-
-  // Create or update canonical Artist record
-  const artist = await prisma.artist.upsert({
-    where: { spotifyId: spotifyId || canonicalId },
-    update: {
-      displayName: canonicalName,
-      normalizedName,
-      rawGenres: JSON.stringify(genres),
-      popularity,
-      followers,
-      imageUrl,
-      updatedAt: new Date(),
-    },
-    create: {
-      id: canonicalId,
-      spotifyId: spotifyId || canonicalId,
-      displayName: canonicalName,
-      normalizedName,
-      rawGenres: JSON.stringify(genres),
-      popularity,
-      followers,
-      imageUrl,
-    },
+  const { upsertArtistIdentity } = await import('@/lib/artists/enrich-identity');
+  const resolved = await upsertArtistIdentity({
+    name: canonicalName,
+    spotifyId: spotifyId || null,
+    genres,
+    popularity,
+    followers,
+    imageUrl: imageUrl || null,
+  });
+  const artist = await prisma.artist.findUniqueOrThrow({
+    where: { id: resolved.id },
   });
 
   // Step 2: Compute Audio Feature Subvector (6D)
