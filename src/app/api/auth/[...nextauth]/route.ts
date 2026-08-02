@@ -64,9 +64,16 @@ async function refreshSpotifyToken(refreshToken: string): Promise<RefreshResult>
  * at module scope. `next build` runs with NODE_ENV=production; the old module
  * scope `throw` failed the build whenever secrets weren't present at build
  * time (e.g. runtime-only env on Vercel). Missing secrets still fail loudly on
- * first use so a misconfigured deploy can't silently run with a weak secret.
+ * first request so a misconfigured deploy can't silently run with a weak secret.
  */
-function missingEnv(name: string): never {
+function missingEnv(name: string): string {
+  // During `next build` (Vercel sets NEXT_PHASE=phase-production-build),
+  // return a placeholder so page-data collection never fails for runtime-only
+  // secrets. At request time this getter path is never used: missing secrets
+  // throw below, so a misconfigured runtime still fails loudly.
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return `__missing_${name}__`;
+  }
   throw new Error(`${name} must be set in production!`);
 }
 
