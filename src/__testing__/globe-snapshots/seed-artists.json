@@ -1,0 +1,15 @@
+{
+  "_comment": "Curated seed artists for globe snapshot testing. Covers 10+ genres, varied popularity. Used to build reproducible frontier + depth bucket snapshots.",
+  "seeds": [
+    { "name": "Radiohead", "genres": ["alternative rock", "art rock", "electronic"], "popularity": 82 },
+    { "name": "Kendrick Lamar", "genres": ["hip hop", "rap", "west coast"], "popularity": 90 },
+    { "name": "Daft Punk", "genres": ["electronic", "french house", "dance"], "popularity": 85 },
+    { "name": "Billie Holiday", "genres": ["jazz", "vocal jazz", "blues"], "popularity": 75 },
+    { "name": "Ludovico Einaudi", "genres": ["classical", "neoclassical", "ambient"], "popularity": 78 },
+    { "name": "Metallica", "genres": ["metal", "thrash metal", "hard rock"], "popularity": 84 },
+    { "name": "Dolly Parton", "genres": ["country", "country pop", "folk"], "popularity": 80 },
+    { "name": "Buena Vista Social Club", "genres": ["latin", "cuban", "son"], "popularity": 68 },
+    { "name": "Aphex Twin", "genres": ["electronic", "IDM", "ambient"], "popularity": 72 },
+    { "name": "Nusrat Fateh Ali Khan", "genres": ["world", "qawwali", "pakistani"], "popularity": 65 }
+  ]
+}

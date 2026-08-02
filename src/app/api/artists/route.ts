@@ -1,0 +1,101 @@
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import {
+  dedupeArtistsByName,
+  enrichAndPersistArtist,
+  isWeakImageUrl,
+  type ArtistRow,
+} from '@/lib/artists/enrich-identity';
+
+function parseGenres(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const g = JSON.parse(raw);
+    return Array.isArray(g) ? g.filter((x: unknown) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function GET() {
+  try {
+    const dbArtists = await prisma.artist.findMany({
+      select: {
+        id: true,
+        spotifyId: true,
+        displayName: true,
+        rawGenres: true,
+        popularity: true,
+        imageUrl: true,
+      },
+      orderBy: { displayName: 'asc' },
+    });
+
+    // Self-heal: enrich rows missing genres or weak images (cap per request for latency).
+    type DbArtist = (typeof dbArtists)[number];
+    const needsWork = dbArtists.filter((a: DbArtist) => {
+      const genres = parseGenres(a.rawGenres);
+      return genres.length === 0 || isWeakImageUrl(a.imageUrl);
+    });
+
+    const ENRICH_CAP = 40;
+    if (needsWork.length > 0) {
+      console.log(
+        `[API artists] Enriching up to ${Math.min(ENRICH_CAP, needsWork.length)} / ${needsWork.length} incomplete artists…`,
+      );
+      const slice = needsWork.slice(0, ENRICH_CAP);
+      // Sequential-ish batches of 5 to respect rate limits
+      for (let i = 0; i < slice.length; i += 5) {
+        const batch = slice.slice(i, i + 5);
+        await Promise.all(
+          batch.map((a: DbArtist) =>
+            enrichAndPersistArtist(a as ArtistRow).catch((err: unknown) => {
+              console.warn(`[API artists] enrich failed ${a.displayName}:`, err);
+              return a;
+            }),
+          ),
+        );
+      }
+    }
+
+    const fresh = await prisma.artist.findMany({
+      select: {
+        id: true,
+        spotifyId: true,
+        displayName: true,
+        rawGenres: true,
+        popularity: true,
+        imageUrl: true,
+      },
+      orderBy: { displayName: 'asc' },
+    });
+
+    const withGenres = fresh.map((a: (typeof fresh)[number]) => ({
+      id: a.id,
+      name: a.displayName,
+      displayName: a.displayName,
+      spotifyId: a.spotifyId,
+      genres: parseGenres(a.rawGenres),
+      rawGenres: a.rawGenres,
+      popularity: a.popularity,
+      imageUrl: a.imageUrl || '',
+    }));
+
+    const deduped = dedupeArtistsByName(withGenres);
+
+    const formatted = deduped.map((a) => ({
+      id: a.id,
+      name: a.name || a.displayName,
+      genres: a.genres || parseGenres(a.rawGenres),
+      popularity: a.popularity || 50,
+      imageUrl: a.imageUrl || '',
+    }));
+
+    return NextResponse.json(formatted);
+  } catch (error) {
+    console.error('[API artists] Error:', error);
+    return NextResponse.json({ error: 'Failed to load artists' }, { status: 500 });
+  }
+}

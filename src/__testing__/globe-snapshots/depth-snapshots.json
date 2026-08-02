@@ -1,0 +1,26 @@
+{
+  "_comment": "Expected frontier depth bucket snapshots. Counts/names updated by running test with UPDATE_SNAPSHOTS=1. Manual curation after first run.",
+  "seedCount": 10,
+  "snapshots": {
+    "close": {
+      "_desc": "Low expansionDistance (0-0.34). Artists very close to seed taste.",
+      "expectedCountRange": [10, 40],
+      "sampleArtists": []
+    },
+    "far": {
+      "_desc": "Mid expansionDistance (0.34-0.67). Adjacent genres, moderate stretch.",
+      "expectedCountRange": [15, 50],
+      "sampleArtists": []
+    },
+    "farther": {
+      "_desc": "High expansionDistance (0.67-1.0). Far from seed taste, bold picks.",
+      "expectedCountRange": [10, 40],
+      "sampleArtists": []
+    },
+    "all": {
+      "_desc": "All frontier nodes. Sum of close+far+farther (or close+far+farther with minor overlap).",
+      "expectedCountRange": [30, 120],
+      "sampleArtists": []
+    }
+  }
+}

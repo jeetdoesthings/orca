@@ -1,0 +1,26 @@
+# Part 16 — local/staging Postgres for ORCA
+# Usage: docker compose up -d postgres
+#        export DATABASE_URL=postgresql://orca:orca@localhost:5432/orca
+#        # then set provider = "postgresql" in prisma/schema.prisma and:
+#        npx prisma db push
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orca
+      POSTGRES_PASSWORD: orca
+      POSTGRES_DB: orca
+    ports:
+      - "5432:5432"
+    volumes:
+      - orca_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orca -d orca"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  orca_pg_data:
