@@ -1,17 +1,28 @@
 import { NextRequest } from 'next/server';
 
+/** Audit fix M1: cap proxied image size (Content-Length + post-read check). */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 const ALLOWED_DOMAINS = [
   'i.scdn.co',
+  'mosaic.scdn.co',
+  'image-cdn-ak.spotifycdn.com',
+  'image-cdn-fa.spotifycdn.com',
   'spotifycdn.com',
   'scdn.co',
   'dzcdn.net',
+  'cdns-images.dzcdn.net',
+  'e-cdns-images.dzcdn.net',
   'deezer.com',
   'last.fm',
   'lastfm.freetls.fastly.net',
   'fastly.net',
   'audioscrobbler.com',
   'wikimedia.org',
-  'wikipedia.org'
+  'upload.wikimedia.org',
+  'commons.wikimedia.org',
+  'wikipedia.org',
+  'en.wikipedia.org',
 ];
 
 function isAllowedDomain(urlStr: string): boolean {
@@ -48,7 +59,23 @@ export async function GET(request: NextRequest) {
     }
 
     const contentType = res.headers.get('content-type') || 'image/jpeg';
+
+    // Audit fix M1: only proxy real images. Without this check the endpoint is
+    // an open proxy for HTML/JSON/JS resources on the allow-listed domains.
+    if (!contentType.toLowerCase().startsWith('image/')) {
+      return new Response('Forbidden content type', { status: 400 });
+    }
+
+    // Reject oversized responses up front when the server declares a length.
+    const declaredLength = parseInt(res.headers.get('content-length') || '0', 10);
+    if (declaredLength > MAX_IMAGE_BYTES) {
+      return new Response('Image too large', { status: 400 });
+    }
+
     const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+      return new Response('Image too large', { status: 400 });
+    }
 
     return new Response(buffer, {
       headers: {

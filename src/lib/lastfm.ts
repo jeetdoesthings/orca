@@ -1,8 +1,11 @@
 import { lastfmLimiter, spotifyLimiter } from './utils/rate-limiter';
 
-const API_KEY = process.env.LASTFM_API_KEY || (process.env.NODE_ENV === 'production'
-  ? (() => { throw new Error('LASTFM_API_KEY must be set in production!'); })()
-  : '***REDACTED-LASTFM-KEY***');
+// Audit fix M2: read the API key from env only. The former hardcoded dev key
+// ('607ad8…') was committed to the repo and is now rejected by Last.fm anyway.
+const API_KEY = process.env.LASTFM_API_KEY;
+if (!API_KEY && process.env.NODE_ENV === 'production') {
+  throw new Error('LASTFM_API_KEY must be set in production!');
+}
 const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 export const ICONIC_SEEDS: Record<string, string[]> = {
@@ -64,6 +67,7 @@ const GENRE_TAG_MAP: Record<string, string> = {
 
 
 async function lastFmFetch<T>(params: Record<string, string>): Promise<T> {
+  if (!API_KEY) throw new Error('LASTFM_API_KEY is not configured');
   await lastfmLimiter.acquire();
   const queryParams = new URLSearchParams({
     ...params,

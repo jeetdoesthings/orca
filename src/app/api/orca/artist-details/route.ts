@@ -7,9 +7,8 @@ const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? '';
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SEARCH_URL = 'https://api.spotify.com/v1/search';
 
-const LASTFM_API_KEY = process.env.LASTFM_API_KEY || (process.env.NODE_ENV === 'production'
-  ? (() => { throw new Error('LASTFM_API_KEY must be set in production!'); })()
-  : '***REDACTED-LASTFM-KEY***');
+// Audit fix M2: read the Last.fm key from env only (no committed fallback key).
+const LASTFM_API_KEY = process.env.LASTFM_API_KEY;
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 // Server-side Spotify Token Cache
@@ -52,6 +51,7 @@ function cleanBio(bioText?: string): string {
 
 // Fetch bio description from Last.fm
 async function fetchLastFmBio(artistName: string): Promise<string> {
+  if (!LASTFM_API_KEY) return '';
   try {
     const queryParams = new URLSearchParams({
       method: 'artist.getInfo',
@@ -73,6 +73,7 @@ async function fetchLastFmBio(artistName: string): Promise<string> {
 
 // Fetch Top Albums from Last.fm as robust fallback
 async function fetchLastFmTopAlbums(artistName: string): Promise<any[]> {
+  if (!LASTFM_API_KEY) return [];
   try {
     const queryParams = new URLSearchParams({
       method: 'artist.getTopAlbums',
@@ -108,6 +109,7 @@ async function fetchLastFmTopAlbums(artistName: string): Promise<any[]> {
 
 // Fetch Top Tracks from Last.fm as robust fallback
 async function fetchLastFmTopTracks(artistName: string): Promise<any[]> {
+  if (!LASTFM_API_KEY) return [];
   try {
     const queryParams = new URLSearchParams({
       method: 'artist.getTopTracks',
