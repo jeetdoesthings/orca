@@ -1,7 +1,12 @@
 import { NextRequest } from 'next/server';
 
 /** Audit fix M1: cap proxied image size (Content-Length + post-read check). */
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** True when the content-type is an image (audit fix M1). */
+export function isImageContentType(contentType: string | null | undefined): boolean {
+  return Boolean(contentType && contentType.toLowerCase().startsWith('image/'));
+}
 
 const ALLOWED_DOMAINS = [
   'i.scdn.co',
@@ -25,7 +30,7 @@ const ALLOWED_DOMAINS = [
   'en.wikipedia.org',
 ];
 
-function isAllowedDomain(urlStr: string): boolean {
+export function isAllowedDomain(urlStr: string): boolean {
   try {
     const parsed = new URL(urlStr);
     const hostname = parsed.hostname.toLowerCase();
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     // Audit fix M1: only proxy real images. Without this check the endpoint is
     // an open proxy for HTML/JSON/JS resources on the allow-listed domains.
-    if (!contentType.toLowerCase().startsWith('image/')) {
+    if (!isImageContentType(contentType)) {
       return new Response('Forbidden content type', { status: 400 });
     }
 
