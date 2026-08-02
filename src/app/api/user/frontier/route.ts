@@ -5,12 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { materializeWorld } from '@/lib/frontier/pipeline-runner';
+import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
 import { detectGeographicGaps } from '@/lib/metrics/geographicCoverage';
 import { computeAdventurousness } from '@/lib/metrics/adventurousness';
 import type { OrcaNode } from '@/lib/graph/types';
 import { assessUserColdStart } from '@/lib/identity/cold-start';
 import { resolveDemoUser } from '@/lib/auth/demo-user';
+export const maxDuration = 300;
 
 /**
  * GET /api/user/frontier — pure read of cached frontier.
@@ -152,15 +153,18 @@ export async function POST(request: NextRequest) {
     const userId = session.user.spotifyId;
     const accessToken = session.spotifyAccessToken || '';
 
-    // Fire-and-forget sole writer — client polls GET for status
-    materializeWorld(userId, {
+    // Audit fix H2: await the materialization (deduped per user) so the run
+    // survives serverless; the client polls GET for status.
+    const result = await materializeWorldDeduped(userId, {
       accessToken,
       fullMaterialization: true,
-    }).catch((err) => {
-      console.error('[API frontier] Explicit materialize failed:', err);
     });
 
-    return NextResponse.json({ status: 'recompute_triggered' });
+    return NextResponse.json({
+      status: 'recompute_complete',
+      snapshotVersion: result.worldState.snapshotVersion,
+      frontierCount: result.frontierNodes.length,
+    });
   } catch (error) {
     console.error('[API user/frontier] POST Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

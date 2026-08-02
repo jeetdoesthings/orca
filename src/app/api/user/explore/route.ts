@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { computeAndStoreFrontier } from '@/lib/frontier/computeAndStoreFrontier';
+import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
+import { recordRecommendationMemory } from '@/lib/recommendation/memory';
 import type { OrcaNode, OrcaEdge } from '@/lib/graph/types';
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
@@ -122,6 +124,12 @@ export async function POST(request: Request) {
         globeData: JSON.stringify({ nodes: updatedNodes, edges }),
       },
     });
+    await recordRecommendationMemory({
+      userId,
+      artistId,
+      status: 'opened',
+      sourceSnapshot: { route: '/api/user/explore', action },
+    });
 
     // 4. Trigger asynchronous background frontier recalculation with throttling
     let shouldRecompute = false;
@@ -149,7 +157,9 @@ export async function POST(request: Request) {
     }
 
     if (shouldRecompute) {
-      computeAndStoreFrontier(userId, updatedNodes, accessToken).catch(err => {
+      // Audit fix H2: await the recompute (deduped per user) so it survives
+      // serverless; per-artist errors are isolated below.
+      await materializeWorldDeduped(userId, { exploredNodes: updatedNodes, accessToken }).catch(err => {
         console.error('[API explore] Background frontier recompute error:', err);
       });
     } else {

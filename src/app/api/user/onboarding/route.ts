@@ -9,8 +9,9 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { applyOnboardingPicks } from '@/lib/identity/cold-start';
 import { isDemoEnabled, isDemoScopedUserId } from '@/lib/auth/demo-user';
-import { materializeWorld } from '@/lib/frontier/pipeline-runner';
+import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
 import { prisma } from '@/lib/prisma';
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
           where: { OR: [{ id: userId }, { spotifyId }] },
         });
         const mid = u?.spotifyId || u?.id || userId;
-        await materializeWorld(mid, { fullMaterialization: true, sliderValue: 0.55 });
+        await materializeWorldDeduped(mid, { fullMaterialization: true, sliderValue: 0.55 });
         materializeStatus = 'ok';
       } catch (err) {
         console.warn('[onboarding] materialize failed (identity still saved):', err);

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { materializeWorld } from '@/lib/frontier/pipeline-runner';
+import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
 import { parseRequestRuntimeConfig } from '@/lib/config/request-runtime';
 import { resolveDemoUser } from '@/lib/auth/demo-user';
+export const maxDuration = 300;
 
 /**
  * Canonical POST — explicit world materialization.
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       userId = (session as any).user.spotifyId;
     }
 
-    const result = await materializeWorld(userId, { fullMaterialization: true });
+    const result = await materializeWorldDeduped(userId, { fullMaterialization: true });
 
     return NextResponse.json({
       status: 'complete',

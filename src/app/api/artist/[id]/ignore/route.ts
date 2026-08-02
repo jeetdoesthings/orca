@@ -4,6 +4,7 @@ import { authOptions } from '../../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { recordRecommendationMemory } from '@/lib/recommendation/memory';
 import { resolveDemoUser } from '@/lib/auth/demo-user';
+export const maxDuration = 300;
 
 export async function POST(
   request: NextRequest,
@@ -73,8 +74,8 @@ export async function POST(
       }
 
       // Trigger world state regeneration
-      const { materializeWorld } = await import('@/lib/frontier/pipeline-runner');
-      await materializeWorld(userId, { fullMaterialization: true });
+      const { materializeWorldDeduped } = await import('@/lib/frontier/materialize-lock');
+      await materializeWorldDeduped(userId, { fullMaterialization: true });
 
       return NextResponse.json({
         status: 'success',

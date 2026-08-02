@@ -8,8 +8,9 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { recordTerritoryReject } from '@/lib/feedback/territory-reject';
-import { materializeWorld } from '@/lib/frontier/pipeline-runner';
+import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
 import { resolveDemoUser } from '@/lib/auth/demo-user';
+export const maxDuration = 300;
 
 export async function POST(
   request: NextRequest,
@@ -49,7 +50,7 @@ export async function POST(
     // Rebuild frontier so suppression applies immediately
     if (body.materialize !== false) {
       try {
-        await materializeWorld(userId, { fullMaterialization: true });
+        await materializeWorldDeduped(userId, { fullMaterialization: true });
       } catch (err) {
         console.warn('[territory reject] materialize failed:', err);
       }

@@ -16,7 +16,7 @@ import {
 } from '@/lib/spotifySync';
 import { normaliseGenre } from '@/lib/graph/genre-normaliser';
 import { computeUserProfile } from '@/lib/profile/profile-engine';
-import { materializeWorld } from '@/lib/frontier/pipeline-runner';
+import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
 import type { OrcaNode } from '@/lib/graph/types';
 import {
   dedupeArtistsByName,
@@ -27,6 +27,7 @@ import {
 } from '@/lib/artists/enrich-identity';
 import { resolveAudioSignature } from '@/lib/audio/resolve-signature';
 import { isDemoEnabled } from '@/lib/auth/demo-user';
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
@@ -249,7 +250,7 @@ export async function POST(request: NextRequest) {
     console.log(
       `[API sync-demo] Materializing world for demo-user (${uniqueNodes.length} selected artists)…`,
     );
-    await materializeWorld('demo-user', {
+    await materializeWorldDeduped('demo-user', {
       exploredNodes: uniqueNodes,
       accessToken: '',
       fullMaterialization: true,
