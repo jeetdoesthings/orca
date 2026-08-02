@@ -59,27 +59,49 @@ async function refreshSpotifyToken(refreshToken: string): Promise<RefreshResult>
   return p;
 }
 
+/**
+ * Audit fix (Vercel build): env values are read lazily, at request time, never
+ * at module scope. `next build` runs with NODE_ENV=production; the old module
+ * scope `throw` failed the build whenever secrets weren't present at build
+ * time (e.g. runtime-only env on Vercel). Missing secrets still fail loudly on
+ * first use so a misconfigured deploy can't silently run with a weak secret.
+ */
+function missingEnv(name: string): never {
+  throw new Error(`${name} must be set in production!`);
+}
+
 export const authOptions: AuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'production'
-    ? (() => { throw new Error('NEXTAUTH_SECRET must be set in production!'); })()
-    : 'fallback-secret-for-pre-alpha-testing-1234567890'),
+  get secret() {
+    return (
+      process.env.NEXTAUTH_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? missingEnv('NEXTAUTH_SECRET')
+        : 'fallback-secret-for-pre-alpha-testing-1234567890')
+    );
+  },
   adapter: PrismaAdapter(prisma),
-  providers: [
-    SpotifyProvider({
-      clientId: process.env.SPOTIFY_CLIENT_ID || (process.env.NODE_ENV === 'production'
-        ? (() => { throw new Error('SPOTIFY_CLIENT_ID must be set in production!'); })()
-        : 'dummy-spotify-client-id'),
-      clientSecret: process.env.SPOTIFY_CLIENT_SECRET || (process.env.NODE_ENV === 'production'
-        ? (() => { throw new Error('SPOTIFY_CLIENT_SECRET must be set in production!'); })()
-        : 'dummy-spotify-client-secret'),
-      authorization: {
-        params: {
-          scope: SPOTIFY_SCOPES,
-          show_dialog: false,
+  get providers() {
+    return [
+      SpotifyProvider({
+        clientId:
+          process.env.SPOTIFY_CLIENT_ID ||
+          (process.env.NODE_ENV === 'production'
+            ? missingEnv('SPOTIFY_CLIENT_ID')
+            : 'dummy-spotify-client-id'),
+        clientSecret:
+          process.env.SPOTIFY_CLIENT_SECRET ||
+          (process.env.NODE_ENV === 'production'
+            ? missingEnv('SPOTIFY_CLIENT_SECRET')
+            : 'dummy-spotify-client-secret'),
+        authorization: {
+          params: {
+            scope: SPOTIFY_SCOPES,
+            show_dialog: false,
+          },
         },
-      },
-    }),
-  ],
+      }),
+    ];
+  },
   callbacks: {
     async jwt({ token, account, user }) {
       // On initial sign-in, save the Spotify tokens to the JWT
