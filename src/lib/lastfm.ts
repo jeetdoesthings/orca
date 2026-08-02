@@ -2,10 +2,9 @@ import { lastfmLimiter, spotifyLimiter } from './utils/rate-limiter';
 
 // Audit fix M2: read the API key from env only. The former hardcoded dev key
 // ('607ad8…') was committed to the repo and is now rejected by Last.fm anyway.
+// Do NOT throw at module scope: next build runs with NODE_ENV=production and
+// would fail without a build-time key. Callers degrade gracefully when unset.
 const API_KEY = process.env.LASTFM_API_KEY;
-if (!API_KEY && process.env.NODE_ENV === 'production') {
-  throw new Error('LASTFM_API_KEY must be set in production!');
-}
 const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 export const ICONIC_SEEDS: Record<string, string[]> = {
