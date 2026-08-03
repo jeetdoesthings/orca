@@ -48,7 +48,9 @@ export async function loadReadinessHistory(
 
   for (const row of overrides) {
     let tier: ReadinessTier | null = null;
-    let at: string = row.createdAt.toISOString();
+    // AgencyInteractionEvent uses `timestamp`, not `createdAt` (crash fix: the
+    // old code read row.createdAt which is undefined → TypeError).
+    let at: string = (row.timestamp ?? new Date()).toISOString();
     try {
       const meta = JSON.parse((row.metadata as string) || '{}');
       if (meta.tier && (['comfort', 'expansion', 'leap'] as ReadinessTier[]).includes(meta.tier)) {
