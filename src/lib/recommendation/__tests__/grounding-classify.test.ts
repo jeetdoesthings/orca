@@ -136,5 +136,46 @@ describe('grounding and distance classification', () => {
     expect(surface.expansion.map((p) => p.candidateId)).toContain('shallow');
     expect(surface.leap.map((p) => p.candidateId)).toContain('deep');
   });
+
+  it('demotes claimed-far intent when measured distance is very close (sanity gate)', async () => {
+    // Regression: a candidate claiming Deep intent but measuring < 0.34 must
+    // NOT land in the leap bucket — that was the fake-leap-bucket path.
+    const closeButClaimsDeep = [
+      candidate('shore', 'Shore Artist', ['jazz']),
+      candidate('shallow', 'Shallow Artist', ['soul']),
+      candidate('deep', 'Deep Artist', ['gamelan']),
+    ];
+    const verified = await groundLLMRecommendations({
+      recommendations: [
+        { artistId: 'shore', artist: 'Shore Artist', rank: 1, distanceIntent: 'Deep', gatewayPath: [], territoryFraming: '', explanation: '', albumSuggestions: [], evidenceIds: [] },
+        { artistId: 'shallow', artist: 'Shallow Artist', rank: 2, distanceIntent: 'Shallow', gatewayPath: [], territoryFraming: '', explanation: '', albumSuggestions: [], evidenceIds: [] },
+        { artistId: 'deep', artist: 'Deep Artist', rank: 3, distanceIntent: 'Deep', gatewayPath: [], territoryFraming: '', explanation: '', albumSuggestions: [], evidenceIds: [] },
+      ],
+      candidatePool: [
+        retrieved('shore', 'Shore Artist', ['jazz']),
+        retrieved('shallow', 'Shallow Artist', ['soul']),
+        retrieved('deep', 'Deep Artist', ['gamelan']),
+      ],
+      candidates: closeButClaimsDeep,
+      knownIds: new Set(),
+      ignoredIds: new Set(),
+      rejectedIds: new Set(),
+      integratedIds: new Set(),
+    });
+    const surface = classifyAndValidateSurface({
+      userId: 'u1',
+      identity,
+      verified,
+      candidates: closeButClaimsDeep,
+      exploredArtists: explored,
+      userCentroid: explored[0].audioSignature,
+      userGenreProfile: new Map([['jazz', 1]]),
+      realAudioById: new Map(),
+    }).surface;
+
+    // shore claims Deep but jazz-from-jazz distance is ~0 — must not be leap.
+    // It should be demoted out of leap into comfort/expansion.
+    expect(surface.leap.map((p) => p.candidateId)).not.toContain('shore');
+  });
 });
 

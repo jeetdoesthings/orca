@@ -106,5 +106,25 @@ describe('LLM recommendation schema validation', () => {
     expect(result.recommendations).toHaveLength(1);
     expect(result.errors.join(' ')).toContain('Duplicate recommendation');
   });
+
+  it('deterministic fallback derives intent from real retrieval path, not list index', () => {
+    // Regression: fallback used to fabricate distanceIntent by list index
+    // (i%5 Deep / i%2 Shallow / Shore), creating a fake leap bucket even when
+    // every candidate was an adjacency/shore retrieval. Intent must reflect
+    // the real retrieval path.
+    const poolWithPaths: RetrievedArtist[] = [
+      { ...pool[0], retrievalPath: 'leap_seek', canonicalName: 'Far Artist', spotifyId: 'sp1' },
+      { ...pool[0], retrievalPath: 'shore_seek', canonicalName: 'Near Artist', spotifyId: 'sp2' },
+      { ...pool[0], retrievalPath: 'adjacency', canonicalName: 'Mid Artist', spotifyId: 'sp3' },
+    ];
+    const result = __test__.deterministicFallback({
+      ...input(),
+      candidatePool: poolWithPaths,
+    });
+    const byId = new Map(result.recommendations.map((r) => [r.artistId, r.distanceIntent]));
+    expect(byId.get('sp1')).toBe('Deep'); // leap_seek → genuinely far
+    expect(byId.get('sp2')).toBe('Shore'); // shore_seek → genuinely close
+    expect(byId.get('sp3')).toBe('Shallow'); // adjacency → middle
+  });
 });
 
