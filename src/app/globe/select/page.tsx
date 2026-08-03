@@ -81,7 +81,7 @@ function ArtistAvatar({ name, imageUrl }: { name: string; imageUrl: string }) {
     if (!imageUrl) {
       // No stored URL — resolve by name once
       let cancelled = false;
-      fetch(`/api/orca/image?artist=${encodeURIComponent(name)}`)
+      fetch(`/api/orca/image?artist=${encodeURIComponent(name)}&demo=true`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (!cancelled && data?.imageUrl) setSrc(data.imageUrl);
@@ -119,7 +119,7 @@ function ArtistAvatar({ name, imageUrl }: { name: string; imageUrl: string }) {
         }
         setTriedResolve(true);
         // Multi-provider resolve (Spotify/Deezer/Wiki/MB)
-        fetch(`/api/orca/image?artist=${encodeURIComponent(name)}`)
+        fetch(`/api/orca/image?artist=${encodeURIComponent(name)}&demo=true`)
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (data?.imageUrl) setSrc(data.imageUrl);

@@ -77,6 +77,22 @@ function missingEnv(name: string): string {
   throw new Error(`${name} must be set in production!`);
 }
 
+/**
+ * Stable base URL for auth cookies/redirects.
+ *
+ * NextAuth v4 uses `NEXTAUTH_URL` for the OAuth state cookie domain/path. When
+ * it's unset on Vercel, the callback can't find the state cookie ("State cookie
+ * was missing") because the URL defaults to http://localhost:3000. This helper
+ * prefers the explicit env var, then falls back to Vercel's auto-injected
+ * `VERCEL_URL`, then to the request origin — all stable per deployment so the
+ * sign-in and callback requests agree.
+ */
+function resolveAuthBaseUrl(): string | undefined {
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return undefined;
+}
+
 export const authOptions: AuthOptions = {
   get secret() {
     return (
@@ -158,6 +174,10 @@ export const authOptions: AuthOptions = {
     },
   },
   session: { strategy: 'jwt' },
+  // Fix "State cookie was missing": derive a stable base URL (NEXTAUTH_URL →
+  // VERCEL_URL → request origin) and pin cookie security to that URL's scheme,
+  // so the state cookie set at sign-in is found at the callback.
+  ...(resolveAuthBaseUrl() ? { useSecureCookies: resolveAuthBaseUrl()!.startsWith('https://') } : {}),
   pages: {
     signIn: '/auth/connect',
     error: '/auth/connect',

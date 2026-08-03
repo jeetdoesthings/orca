@@ -354,16 +354,9 @@ export async function GET(request: NextRequest) {
   if (!isDemo && (!session || !session.user)) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
-  if (isDemo) {
-    // Audit fix H1: demo mode resolves ONLY the explicit demo-user row, never
-    // the first real synced user (the former findFirst fallback was a
-    // cross-user data path).
-    const { resolveDemoUser } = await import('@/lib/auth/demo-user');
-    const demoId = await resolveDemoUser();
-    if (!demoId) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-  }
+  // Demo image lookups are public, read-only metadata (Spotify/Deezer/Wiki
+  // thumbnails) with no per-user data — allow them without a seeded demo-user.
+  void isDemo;
 
   const artist = request.nextUrl.searchParams.get('artist');
   if (!artist) {
