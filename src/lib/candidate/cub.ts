@@ -186,11 +186,11 @@ export async function identifyGenreGrowthOpportunities(
   const affinityMap = new Map<string, number>(affinities.map((a: any) => [a.territoryId, a.compatibilityScore]));
 
   const seedGenres = new Set<string>();
-  for (const seed of seeds) {
-    const artist = await prisma.artist.findUnique({
-      where: { id: seed.artistId },
-      select: { rawGenres: true },
-    });
+  const seedArtists = await prisma.artist.findMany({
+    where: { id: { in: seeds.map((seed) => seed.artistId) } },
+    select: { rawGenres: true },
+  });
+  for (const artist of seedArtists) {
     if (artist?.rawGenres) {
       const genres: string[] = JSON.parse(artist.rawGenres);
       genres.forEach((g) => seedGenres.add(normaliseGenre([g])));
