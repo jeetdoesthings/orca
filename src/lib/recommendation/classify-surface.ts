@@ -49,18 +49,18 @@ function overlapRatio(a: string[], b: string[]): number {
 }
 
 function bucketFromIntent(intent: string, composite: number, overlap: number): ReadinessTier {
-  // Intent is the primary signal (honestly derived from the retrieval path:
-  // leap_seek → Deep, shore_seek → Shore, adjacency → Shallow).
-  // Distance acts as a sanity gate only at the extremes: an intent that
-  // strongly contradicts the measured distance is demoted.
-  const want: ReadinessTier | null =
-    intent === 'Deep' ? 'leap' : intent === 'Shore' ? 'comfort' : intent === 'Shallow' ? 'expansion' : null;
-  if (want) {
-    if (want === 'leap' && composite < 0.34) return 'expansion'; // claimed far, measured close
-    if (want === 'comfort' && composite > 0.67) return 'expansion'; // claimed close, measured far
-    return want;
-  }
+  // Measured distance is the ground truth at the extremes. A candidate that
+  // measures >= 0.67 is genuinely far — it belongs in leap even if the LLM
+  // didn't label it Deep (e.g. adjacency-path artists at real distance).
   if (composite >= 0.67) return 'leap';
+  // Claimed-far but measured-close: the old fake-leap-bucket path. Demote.
+  if (intent === 'Deep' && composite < 0.34) return 'expansion';
+  // Claimed-close but measured-far: promote out of comfort.
+  if (intent === 'Shore' && composite > 0.67) return 'expansion';
+  // Middle ground: intent decides (honestly derived from the retrieval path).
+  if (intent === 'Deep') return 'leap';
+  if (intent === 'Shore') return 'comfort';
+  if (intent === 'Shallow') return 'expansion';
   if (composite <= 0.34) return 'comfort';
   if (overlap < 0.12) return 'leap';
   if (overlap > 0.45) return 'comfort';
