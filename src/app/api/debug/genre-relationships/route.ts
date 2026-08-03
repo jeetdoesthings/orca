@@ -26,14 +26,11 @@ export async function GET(request: NextRequest) {
       if (!session || !session.user) {
         return new NextResponse('Unauthorized', { status: 401 });
       }
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email || '' },
-        select: { spotifyId: true },
-      });
-      if (!user || !user.spotifyId) {
+      const spotifyId = (session as { user?: { spotifyId?: string } }).user?.spotifyId;
+      if (!spotifyId) {
         return new NextResponse('User spotify account not found', { status: 404 });
       }
-      userId = user.spotifyId;
+      userId = spotifyId;
     }
 
     // 1. Compute current genre relationships via pure GRE (Analysis)
@@ -140,6 +137,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[GET /api/debug/genre-relationships] Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

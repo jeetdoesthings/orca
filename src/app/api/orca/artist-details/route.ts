@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
           const spotifyTracks = tracksData.tracks || [];
           tracks = spotifyTracks.slice(0, 8).map((t: any) => ({
             name: t.name,
-            playcount: t.popularity * 8500, // procedurally upscale popularity
+            playcount: t.popularity || 0,
             spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(t.name + ' ' + cleanName)}`,
           }));
         }
@@ -281,19 +281,9 @@ export async function GET(request: NextRequest) {
 
     const description = await bioPromise;
 
-    // Hard fallbacks if both API pipelines return absolutely nothing
-    if (albums.length === 0) {
-      albums = [
-        { name: `Essential ${cleanName}`, playcount: 2024, imageUrl: '', spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(cleanName)}` },
-        { name: `${cleanName} (Live Sessions)`, playcount: 2022, imageUrl: '', spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(cleanName)}` }
-      ];
-    }
-    if (tracks.length === 0) {
-      tracks = [
-        { name: 'Midnight Sun', playcount: 85000, spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(cleanName)}` },
-        { name: 'Currents', playcount: 64000, spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(cleanName)}` }
-      ];
-    }
+    // If both API pipelines return nothing, return empty arrays honestly.
+    // Previously this fabricated fake albums ("Essential $artist", "Live Sessions")
+    // and fake tracks ("Midnight Sun", "Currents") — presenting fabricated data as real.
 
     return NextResponse.json({
       description: description || `${cleanName} is a central voice in the musical ecosystem, creating high-fidelity, boundary-pushing compositions.`,

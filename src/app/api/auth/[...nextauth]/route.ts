@@ -95,12 +95,11 @@ function resolveAuthBaseUrl(): string | undefined {
 
 export const authOptions: AuthOptions = {
   get secret() {
-    return (
-      process.env.NEXTAUTH_SECRET ||
-      (process.env.NODE_ENV === 'production'
-        ? missingEnv('NEXTAUTH_SECRET')
-        : 'fallback-secret-for-pre-alpha-testing-1234567890')
-    );
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) {
+      throw new Error('NEXTAUTH_SECRET is not configured. Set it in .env or environment variables.');
+    }
+    return secret;
   },
   adapter: PrismaAdapter(prisma),
   get providers() {

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       if (!isDemoEnabled()) {
         return NextResponse.json({ error: 'Demo mode is disabled' }, { status: 403 });
       }
-      const requested = body.userId || `onboard-demo-${Date.now()}`;
+      const requested = body.userId || 'demo-user';
       if (!isDemoScopedUserId(requested)) {
         return NextResponse.json({ error: 'Invalid demo userId' }, { status: 400 });
       }

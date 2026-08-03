@@ -61,7 +61,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: 'syncing' });
     }
 
-    const graphData = JSON.parse(dbUser.globeData);
+    let graphData;
+    try {
+      graphData = JSON.parse(dbUser.globeData);
+    } catch {
+      console.error('[/api/globe] Corrupt globeData for user', userId);
+      return NextResponse.json({ error: 'Corrupt globe data' }, { status: 500 });
+    }
     const nodes = graphData.nodes || [];
     const edges = graphData.edges || [];
     const exploredNodeIds = nodes
@@ -412,8 +418,7 @@ export async function GET(request: NextRequest) {
       });
       return response;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('[/api/globe] Error:', error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

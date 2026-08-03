@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { resolveDemoUser } from '@/lib/auth/demo-user';
 import {
   dedupeArtistsByName,
   enrichAndPersistArtist,
@@ -21,8 +24,26 @@ function parseGenres(raw: string | null | undefined): string[] {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Require auth (session or demo mode) — this endpoint triggers external API enrichment.
+  const url = new URL(request.url);
+  const isDemo = url.searchParams.get('demo') === 'true';
+  if (isDemo) {
+    const demoId = await resolveDemoUser();
+    if (!demoId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  } else {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
   try {
+    // Paginate: cap at 500 per request to avoid unbounded memory.
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '500', 10), 500);
+
     const dbArtists = await prisma.artist.findMany({
       select: {
         id: true,
@@ -33,6 +54,7 @@ export async function GET() {
         imageUrl: true,
       },
       orderBy: { displayName: 'asc' },
+      take: limit,
     });
 
     // Self-heal: enrich rows missing genres or weak images (cap per request for latency).
@@ -72,6 +94,7 @@ export async function GET() {
         imageUrl: true,
       },
       orderBy: { displayName: 'asc' },
+      take: limit,
     });
 
     const withGenres = fresh.map((a: (typeof fresh)[number]) => ({

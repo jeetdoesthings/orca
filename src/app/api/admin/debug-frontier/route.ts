@@ -38,13 +38,6 @@ export async function GET(req: Request) {
   const token = account?.access_token || '';
 
   const logs: string[] = [];
-  const originalLog = console.log;
-  console.log = (...args: unknown[]) => {
-    logs.push(
-      args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '),
-    );
-    originalLog(...args);
-  };
 
   try {
     const result = await materializeWorld(userId, {
@@ -61,7 +54,5 @@ export async function GET(req: Request) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message, logs }, { status: 500 });
-  } finally {
-    console.log = originalLog;
   }
 }

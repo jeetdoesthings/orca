@@ -1,4 +1,7 @@
 import { NextRequest } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/route';
+import { resolveDemoUser } from '@/lib/auth/demo-user';
 
 /** Audit fix M1: cap proxied image size (Content-Length + post-read check). */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -43,21 +46,49 @@ export function isAllowedDomain(urlStr: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  const url = request.nextUrl.searchParams.get('url');
-  if (!url) {
+  // Require authentication (session or demo mode) to prevent open proxy abuse.
+  const url = request.nextUrl;
+  const isDemo = url.searchParams.get('demo') === 'true';
+  if (isDemo) {
+    const demoId = await resolveDemoUser();
+    if (!demoId) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+  } else {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+  }
+
+  const imageUrl = url.searchParams.get('url');
+  if (!imageUrl) {
     return new Response('Missing url parameter', { status: 400 });
   }
 
-  if (!isAllowedDomain(url)) {
+  if (!isAllowedDomain(imageUrl)) {
     return new Response('Forbidden target URL domain', { status: 403 });
   }
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(imageUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
+      redirect: 'manual',
     });
+
+    // If the upstream returned a redirect, validate the target is also allowlisted.
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (location && isAllowedDomain(location)) {
+        return new Response(null, {
+          status: 302,
+          headers: { Location: location },
+        });
+      }
+      return new Response('Redirect target not allowlisted', { status: 403 });
+    }
 
     if (!res.ok) {
       return new Response(`Failed to fetch external image: ${res.status}`, { status: res.status });
@@ -87,9 +118,10 @@ export async function GET(request: NextRequest) {
         'Content-Type': contentType || 'image/jpeg',
         'Cache-Control': 'public, max-age=604800, s-maxage=2592000, stale-while-revalidate=86400',
         'CDN-Cache-Control': 'public, max-age=2592000',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': request.headers.get('origin') || 'null',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        'Vary': 'Origin',
       },
     });
   } catch (err) {

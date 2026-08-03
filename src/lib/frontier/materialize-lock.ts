@@ -23,7 +23,7 @@ import { readWorldState } from './world-state-store';
  *   allowed through so the world can recover.
  */
 
-const STALE_COMPUTING_MS = 10 * 60 * 1000;
+const STALE_COMPUTING_MS = 2 * 60 * 1000;
 
 const inflight = new Map<string, Promise<MaterializeWorldResult>>();
 

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "prisma generate && next build",
+  "functions": {
+    "src/app/api/user/sync-demo/route.ts": { "maxDuration": 300 },
+    "src/app/api/user/sync/route.ts": { "maxDuration": 300 },
+    "src/app/api/world/regenerate/route.ts": { "maxDuration": 300 },
+    "src/app/api/user/explore/route.ts": { "maxDuration": 300 },
+    "src/app/api/user/frontier/route.ts": { "maxDuration": 300 },
+    "src/app/api/user/onboarding/route.ts": { "maxDuration": 300 },
+    "src/app/api/artist/[id]/integrate/route.ts": { "maxDuration": 300 },
+    "src/app/api/artist/[id]/ignore/route.ts": { "maxDuration": 300 },
+    "src/app/api/territory/[key]/reject/route.ts": { "maxDuration": 300 }
+  }
+}

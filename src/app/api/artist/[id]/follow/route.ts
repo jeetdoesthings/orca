@@ -28,7 +28,19 @@ export async function POST(
       userId = (session as any).user.spotifyId;
     }
 
-    // Follow mock action
+    await prisma.userArtistMemory.upsert({
+      where: { userId_artistId: { userId, artistId: id } },
+      create: {
+        userId,
+        artistId: id,
+        memoryState: 'FOLLOWED',
+        memoryStrength: 0.8,
+      },
+      update: {
+        memoryState: 'FOLLOWED',
+      },
+    });
+
     return NextResponse.json({
       status: 'success',
       artistId: id,
@@ -37,6 +49,6 @@ export async function POST(
 
   } catch (error: any) {
     console.error('[POST /api/artist/[id]/follow] Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

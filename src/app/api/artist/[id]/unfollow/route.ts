@@ -28,7 +28,11 @@ export async function POST(
       userId = (session as any).user.spotifyId;
     }
 
-    // Unfollow mock action
+    await prisma.userArtistMemory.updateMany({
+      where: { userId, artistId: id, memoryState: 'FOLLOWED' },
+      data: { memoryState: 'UNFOLLOWED' },
+    });
+
     return NextResponse.json({
       status: 'success',
       artistId: id,
@@ -37,6 +41,6 @@ export async function POST(
 
   } catch (error: any) {
     console.error('[POST /api/artist/[id]/unfollow] Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

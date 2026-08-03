@@ -41,9 +41,16 @@ export async function POST(
       return NextResponse.json({ error: 'territory key required' }, { status: 400 });
     }
 
+    let territoryKey: string;
+    try {
+      territoryKey = decodeURIComponent(key);
+    } catch {
+      return NextResponse.json({ error: 'Invalid territory key' }, { status: 400 });
+    }
+
     const result = await recordTerritoryReject({
       userId,
-      territoryKey: decodeURIComponent(key),
+      territoryKey,
       sourceArtistId: body.artistId ?? null,
     });
 
@@ -66,6 +73,6 @@ export async function POST(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal error';
     console.error('[territory reject]', error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
