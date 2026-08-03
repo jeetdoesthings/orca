@@ -5,7 +5,7 @@ import { getStandardisedComparisonKey } from '../identity';
 import { OreConfig } from '../config/ore';
 import { GENRE_ADJACENCY } from '../config/genre-adjacency';
 import { musicbrainzLimiter } from '../utils/rate-limiter';
-import { normalizeArtistName } from '../artists/enrich-identity';
+import { normalizeArtistName, resolveCollabToExistingRow } from '../artists/enrich-identity';
 export interface OREEvidence {
   source: string; // e.g., 'Spotify Similar', 'Last.fm Similar', 'MusicBrainz Relationship', 'Local Graph'
   confidence: number;
@@ -130,12 +130,20 @@ async function cacheArtistInKnowledgeGraph(
       // MBID rows for the same artist). Also write the canonical normalizedName
       // format; the old `.toLowerCase().trim()` left spaces ("kanye west"),
       // which made dedupe-by-normalizedName miss legacy rows.
+      // Collaboration names ("21 Savage & Metro Boomin") resolve to the known
+      // solo artist and merge there — never create a collab catalog row.
       const compactName = normalizeArtistName(artist.displayName);
-      const existingByName = await prisma.artist.findFirst({
-        where: { displayName: artist.displayName },
-        select: { id: true },
-      });
-      const effectiveId = existingByName?.id ?? artist.artistId;
+      const collabTarget = await resolveCollabToExistingRow(artist.displayName);
+      let effectiveId = artist.artistId;
+      if (collabTarget) {
+        effectiveId = collabTarget.id;
+      } else {
+        const existingByName = await prisma.artist.findFirst({
+          where: { displayName: artist.displayName },
+          select: { id: true },
+        });
+        if (existingByName) effectiveId = existingByName.id;
+      }
 
       await prisma.artist.upsert({
         where: { id: effectiveId },

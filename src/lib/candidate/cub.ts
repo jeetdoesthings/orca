@@ -26,11 +26,20 @@ async function saveDiscoveredArtistToDb(art: {
   try {
     // Duplicate-prevention (audit): merge into an existing row with the same
     // display name instead of creating a provider-keyed duplicate.
-    const existing = await prisma.artist.findFirst({
-      where: { displayName: art.displayName },
-      select: { id: true },
-    });
-    const effectiveId = existing?.id ?? art.id;
+    // Collaboration names ("21 Savage & Metro Boomin") resolve to the known
+    // solo artist and merge there — never create a collab catalog row.
+    const { resolveCollabToExistingRow } = await import('@/lib/artists/enrich-identity');
+    const collabTarget = await resolveCollabToExistingRow(art.displayName);
+    let effectiveId = art.id;
+    if (collabTarget) {
+      effectiveId = collabTarget.id;
+    } else {
+      const existing = await prisma.artist.findFirst({
+        where: { displayName: art.displayName },
+        select: { id: true },
+      });
+      if (existing) effectiveId = existing.id;
+    }
     const compactName = art.displayName.toLowerCase().trim();
     await prisma.artist.upsert({
       where: { id: effectiveId },

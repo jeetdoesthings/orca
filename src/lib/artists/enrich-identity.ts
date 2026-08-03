@@ -642,6 +642,60 @@ export function bareSpotifyId(raw?: string | null): string | null {
 }
 
 /**
+ * Split a collaboration-style artist name into its parts.
+ * Detects " & ", " and ", " feat ", " feat. ", " featuring ", " with ",
+ * " vs ", " vs. ", and comma separators. Returns [] when the name is not a
+ * collaboration (e.g. real band names like "Chase & Status" — the parts
+ * don't matter; callers must verify parts resolve to known solo artists).
+ */
+const COLLAB_SPLIT_RE = /\s+(?:&|and|feat\.?|featuring|with|vs\.?)\s+|,\s+/i;
+
+export function splitCollabName(name: string): string[] {
+  if (!name) return [];
+  const clean = name.trim();
+  if (!COLLAB_SPLIT_RE.test(clean)) return [];
+  const parts = clean
+    .split(COLLAB_SPLIT_RE)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length >= 2 ? parts : [];
+}
+
+/**
+ * Resolve a collaboration name ("21 Savage & Metro Boomin") to the first part
+ * that already exists as an Artist row ("21 Savage"). Returns null when no
+ * part exists — in that case the collab is a real duo/band and must be kept.
+ *
+ * Matches the legacy normalizedName format ("kanye west") and the compact
+ * format ("kanyewest") plus exact displayName.
+ */
+export async function resolveCollabToExistingRow(name: string): Promise<{
+  id: string;
+  displayName: string;
+} | null> {
+  const parts = splitCollabName(name);
+  if (parts.length < 2) return null;
+  for (const part of parts) {
+    const compact = normalizeArtistName(part);
+    const spaced = part.toLowerCase().trim();
+    if (!compact && !spaced) continue;
+    const row = await prisma.artist.findFirst({
+      where: {
+        OR: [
+          { normalizedName: compact },
+          { normalizedName: spaced },
+          { displayName: part },
+          { displayName: spaced },
+        ],
+      },
+      select: { id: true, displayName: true },
+    });
+    if (row) return row;
+  }
+  return null;
+}
+
+/**
  * Find the best existing Artist row for a name / spotifyId pair.
  * Handles duplicates (lastfm-kanyewest + Spotify PK for the same person).
  */
@@ -721,7 +775,16 @@ export async function upsertArtistIdentity(input: {
   const followers = input.followers ?? 0;
   const imageUrl = input.imageUrl || null;
 
-  const existing = await findBestArtistRow({ name: input.name, spotifyId: sp });
+  let existing = await findBestArtistRow({ name: input.name, spotifyId: sp });
+
+  if (!existing) {
+    // Collaboration names ("21 Savage & Metro Boomin") must merge into the
+    // already-known solo artist, never create their own catalog row.
+    const collabTarget = await resolveCollabToExistingRow(input.name);
+    if (collabTarget) {
+      existing = await prisma.artist.findUnique({ where: { id: collabTarget.id } });
+    }
+  }
 
   if (existing) {
     // Attach spotifyId only if this row doesn't have one and no other row owns it

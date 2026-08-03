@@ -6,6 +6,8 @@ import {
   dedupeArtistsByName,
   enrichAndPersistArtist,
   isWeakImageUrl,
+  normalizeArtistName,
+  splitCollabName,
   type ArtistRow,
 } from '@/lib/artists/enrich-identity';
 
@@ -85,7 +87,19 @@ export async function GET() {
 
     const deduped = dedupeArtistsByName(withGenres);
 
-    const formatted = deduped.map((a) => ({
+    // Filter collaboration rows ("21 Savage & Metro Boomin") whose parts
+    // already exist as solo artists ("21 Savage") — the collab entry is a
+    // feature/duet artifact, not a real artist. Real bands ("Chase & Status")
+    // have no solo "Chase" row, so they survive.
+    const knownKeys = new Set(deduped.map((a) => normalizeArtistName(a.name || a.displayName || '')));
+    const withoutCollabs = deduped.filter((a) => {
+      const parts = splitCollabName(a.name || a.displayName || '');
+      if (parts.length < 2) return true;
+      // Keep unless any part is a known solo artist row.
+      return !parts.some((part) => knownKeys.has(normalizeArtistName(part)));
+    });
+
+    const formatted = withoutCollabs.map((a) => ({
       id: a.id,
       name: a.name || a.displayName,
       genres: a.genres || parseGenres(a.rawGenres),
