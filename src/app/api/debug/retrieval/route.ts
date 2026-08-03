@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { extractIdentitySeeds } from '@/lib/candidate/cub';
-import { ORCARetrievalEngine, lastRetrievalMetrics } from '@/lib/candidate/ore';
+import { ORCARetrievalEngine } from '@/lib/candidate/ore';
 import { resolveDemoUser } from '@/lib/auth/demo-user';
 
 export async function GET(request: NextRequest) {
@@ -36,13 +36,13 @@ export async function GET(request: NextRequest) {
     // Extract Identity Seeds to query retrieval engine
     const seeds = await extractIdentitySeeds(userId);
     const engine = new ORCARetrievalEngine();
-    await engine.retrieveCandidates(
+    const { metrics } = await engine.retrieveCandidates(
       seeds.map(s => ({ name: s.name, artistId: s.artistId }))
     );
 
     return NextResponse.json({
       status: 'success',
-      metrics: lastRetrievalMetrics,
+      metrics,
     });
   } catch (err: any) {
     console.error('[ORE DEBUG] Debug route execution failed:', err);

@@ -44,24 +44,13 @@ export interface OREMetrics {
   confidenceDistribution: Record<string, number>;
 }
 
-// Global metrics tracker for debug queries
-export let lastRetrievalMetrics: OREMetrics = {
-  seeds: [],
-  providersQueried: [],
-  latencies: {},
-  candidatesRetrieved: 0,
-  duplicatesMerged: 0,
-  cacheHits: 0,
-  cacheMisses: 0,
-  recursiveExpansionTree: [],
-  evidenceCounts: {},
-  missingProviders: [],
-  confidenceDistribution: {},
-};
-
 export interface RetrievalProvider {
   name: string;
-  retrieve(seed: { name: string; artistId: string }, depth: number): Promise<ORECandidate[]>;
+  retrieve(
+    seed: { name: string; artistId: string },
+    depth: number,
+    metrics?: OREMetrics,
+  ): Promise<ORECandidate[]>;
 }
 
 // ── Cache Expiration Helper (7 Days) ──
@@ -204,11 +193,14 @@ async function cacheArtistInKnowledgeGraph(
   }
 }
 
-// ── PROVIDER 1: Local Knowledge Graph Provider ──
 export class LocalKnowledgeGraphProvider implements RetrievalProvider {
   name = 'Local Knowledge Graph';
 
-  async retrieve(seed: { name: string; artistId: string }, depth: number): Promise<ORECandidate[]> {
+  async retrieve(
+    seed: { name: string; artistId: string },
+    depth: number,
+    metrics?: OREMetrics,
+  ): Promise<ORECandidate[]> {
     try {
       const art = await prisma.artist.findFirst({
         where: {
@@ -220,7 +212,7 @@ export class LocalKnowledgeGraphProvider implements RetrievalProvider {
       });
 
       if (!art || !art.metadata) {
-        lastRetrievalMetrics.cacheMisses++;
+        if (metrics) metrics.cacheMisses++;
         return [];
       }
 
@@ -229,11 +221,11 @@ export class LocalKnowledgeGraphProvider implements RetrievalProvider {
 
       // Handle Expired Cache Entry Lazily
       if (Date.now() > expiresAt) {
-        lastRetrievalMetrics.cacheMisses++;
+        if (metrics) metrics.cacheMisses++;
         return []; // Force fresh retrieval from live APIs
       }
 
-      lastRetrievalMetrics.cacheHits++;
+      if (metrics) metrics.cacheHits++;
       const cachedNeighbors: any[] = meta.neighbors || [];
       
       return cachedNeighbors.map((n: any) => ({
@@ -276,7 +268,11 @@ export class LocalKnowledgeGraphProvider implements RetrievalProvider {
 export class SpotifyProvider implements RetrievalProvider {
   name = 'Spotify';
 
-  async retrieve(_seed: { name: string; artistId: string }, _depth: number): Promise<ORECandidate[]> {
+  async retrieve(
+    _seed: { name: string; artistId: string },
+    _depth: number,
+    _metrics?: OREMetrics,
+  ): Promise<ORECandidate[]> {
     // Intentionally empty — do not call /related-artists (dead endpoint).
     // Similarity comes from LastFmProvider + MusicBrainzProvider.
     return [];
@@ -287,7 +283,11 @@ export class SpotifyProvider implements RetrievalProvider {
 export class LastFmProvider implements RetrievalProvider {
   name = 'Last.fm';
 
-  async retrieve(seed: { name: string; artistId: string }, depth: number): Promise<ORECandidate[]> {
+  async retrieve(
+    seed: { name: string; artistId: string },
+    depth: number,
+    _metrics?: OREMetrics,
+  ): Promise<ORECandidate[]> {
     try {
       const similars = await fetchLastFmSimilarArtists(seed.name, 10);
       if (!similars || similars.length === 0) return [];
@@ -347,7 +347,11 @@ export class LastFmProvider implements RetrievalProvider {
 export class MusicBrainzProvider implements RetrievalProvider {
   name = 'MusicBrainz';
 
-  async retrieve(seed: { name: string; artistId: string }, depth: number): Promise<ORECandidate[]> {
+  async retrieve(
+    seed: { name: string; artistId: string },
+    depth: number,
+    _metrics?: OREMetrics,
+  ): Promise<ORECandidate[]> {
     try {
       // 1. Search MusicBrainz for artist
       // Audit fix H3: respect MusicBrainz ~1 rps policy via the shared bucket.
@@ -525,8 +529,10 @@ export class ORCARetrievalEngine {
 
   /**
    * Evaluates all candidates and merges duplicates, merging sources & evidence.
+   * Pass the per-retrieval metrics object so duplicate counts are attributed
+   * to the correct retrieval, not a shared module global.
    */
-  mergeCandidates(candidates: ORECandidate[]): ORECandidate[] {
+  mergeCandidates(candidates: ORECandidate[], metrics?: OREMetrics): ORECandidate[] {
     const mergedMap = new Map<string, ORECandidate>();
     const nameToIdMap = new Map<string, string>(); // normName -> artistId
     let dupCount = 0;
@@ -591,7 +597,7 @@ export class ORCARetrievalEngine {
       }
     }
 
-    lastRetrievalMetrics.duplicatesMerged = (lastRetrievalMetrics.duplicatesMerged || 0) + dupCount;
+    if (metrics) metrics.duplicatesMerged = (metrics.duplicatesMerged || 0) + dupCount;
     return Array.from(mergedMap.values());
   }
 
@@ -633,16 +639,22 @@ export class ORCARetrievalEngine {
   }
 
   /**
-   * Main candidate retrieval flow with depth-2 recursive expansion.
+   * Main candidate retrieval flow with optional depth-2 recursive expansion.
+   *
+   * Returns the merged candidates plus per-retrieval metrics. The metrics
+   * are no longer stored in a module global (which interleaved across
+   * concurrent retrievals and returned the wrong user's data to debug
+   * endpoints); callers receive them as part of the return value instead.
    */
   async retrieveCandidates(
     seeds: Array<{ name: string; artistId: string }>,
     maxDepth = 2
-  ): Promise<ORECandidate[]> {
+  ): Promise<{ candidates: ORECandidate[]; metrics: OREMetrics }> {
     const startTime = Date.now();
-    
-    // Reset metrics
-    lastRetrievalMetrics = {
+
+    // Per-retrieval metrics (not a module global — avoids concurrent
+    // retrievals stomping each other's debug data).
+    const metrics: OREMetrics = {
       seeds: seeds.map(s => s.name),
       providersQueried: this.providers.map(p => p.name),
       latencies: {},
@@ -672,8 +684,8 @@ export class ORCARetrievalEngine {
       const localProvider = this.providers.find(p => p.name === 'Local Knowledge Graph');
       if (localProvider) {
         const localStart = Date.now();
-        const localResults = await localProvider.retrieve(seed, depth);
-        lastRetrievalMetrics.latencies['Local Knowledge Graph'] = (lastRetrievalMetrics.latencies['Local Knowledge Graph'] || 0) + (Date.now() - localStart);
+        const localResults = await localProvider.retrieve(seed, depth, metrics);
+        metrics.latencies['Local Knowledge Graph'] = (metrics.latencies['Local Knowledge Graph'] || 0) + (Date.now() - localStart);
 
         if (localResults.length > 0) {
           return localResults; // Cache hit, return stored neighbors
@@ -685,11 +697,11 @@ export class ORCARetrievalEngine {
       const providerQueries = externalProviders.map(async provider => {
         const pStart = Date.now();
         try {
-          const results = await provider.retrieve(seed, depth);
-          lastRetrievalMetrics.latencies[provider.name] = (lastRetrievalMetrics.latencies[provider.name] || 0) + (Date.now() - pStart);
+          const results = await provider.retrieve(seed, depth, metrics);
+          metrics.latencies[provider.name] = (metrics.latencies[provider.name] || 0) + (Date.now() - pStart);
           return { providerName: provider.name, results };
         } catch {
-          lastRetrievalMetrics.missingProviders.push(provider.name);
+          metrics.missingProviders.push(provider.name);
           return { providerName: provider.name, results: [] };
         }
       });
@@ -707,7 +719,7 @@ export class ORCARetrievalEngine {
         // every neighbor (that collapsed the whole frontier to one territory).
         await hydrateEmptyCandidateGenres(seedCandidates);
 
-        const mergedSeedCandidates = this.mergeCandidates(seedCandidates);
+        const mergedSeedCandidates = this.mergeCandidates(seedCandidates, metrics);
         const neighbors = mergedSeedCandidates.map(c => ({
           id: c.artistId,
           displayName: c.displayName,
@@ -773,7 +785,7 @@ export class ORCARetrievalEngine {
               }
             ]
           }));
-          return this.mergeCandidates(territoryCandidates);
+          return this.mergeCandidates(territoryCandidates, metrics);
         }
       }
 
@@ -811,7 +823,7 @@ export class ORCARetrievalEngine {
                 }
               ]
             }));
-            return this.mergeCandidates(adjacentCandidates);
+            return this.mergeCandidates(adjacentCandidates, metrics);
           }
         }
       }
@@ -847,7 +859,7 @@ export class ORCARetrievalEngine {
             }
           ]
         }));
-        return this.mergeCandidates(sceneCandidates);
+        return this.mergeCandidates(sceneCandidates, metrics);
       }
 
       // ── LEVEL 5: General cold-start representatives ──
@@ -867,7 +879,7 @@ export class ORCARetrievalEngine {
       const candidates = depth1Results[i] || [];
       depth1Candidates.push(...candidates);
 
-      lastRetrievalMetrics.recursiveExpansionTree.push({
+      metrics.recursiveExpansionTree.push({
         seed: seed.name,
         children: candidates.map(c => c.displayName),
       });
@@ -894,7 +906,7 @@ export class ORCARetrievalEngine {
         const candidates = depth2Results[i] || [];
         depth2Candidates.push(...candidates);
 
-        lastRetrievalMetrics.recursiveExpansionTree.push({
+        metrics.recursiveExpansionTree.push({
           seed: seed.name,
           children: candidates.map(c => c.displayName),
         });
@@ -904,7 +916,7 @@ export class ORCARetrievalEngine {
     }
 
     // Merge global candidates
-    let mergedResult = this.mergeCandidates(finalCandidates);
+    let mergedResult = this.mergeCandidates(finalCandidates, metrics);
 
     // Step 5: Cold start fallback if all providers returned zero candidates
     if (mergedResult.length === 0) {
@@ -914,16 +926,16 @@ export class ORCARetrievalEngine {
     // Populate evidence counts
     for (const c of mergedResult) {
       for (const ev of c.discoveryEvidence) {
-        lastRetrievalMetrics.evidenceCounts[ev.source] = (lastRetrievalMetrics.evidenceCounts[ev.source] || 0) + 1;
+        metrics.evidenceCounts[ev.source] = (metrics.evidenceCounts[ev.source] || 0) + 1;
       }
       
       const confBucket = (Math.floor(c.relationshipConfidence * 10) / 10).toFixed(1);
-      lastRetrievalMetrics.confidenceDistribution[confBucket] = (lastRetrievalMetrics.confidenceDistribution[confBucket] || 0) + 1;
+      metrics.confidenceDistribution[confBucket] = (metrics.confidenceDistribution[confBucket] || 0) + 1;
     }
 
-    lastRetrievalMetrics.candidatesRetrieved = mergedResult.length;
-    lastRetrievalMetrics.latencies['Total ORE Pipeline'] = Date.now() - startTime;
+    metrics.candidatesRetrieved = mergedResult.length;
+    metrics.latencies['Total ORE Pipeline'] = Date.now() - startTime;
 
-    return mergedResult;
+    return { candidates: mergedResult, metrics };
   }
 }

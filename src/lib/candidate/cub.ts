@@ -313,7 +313,7 @@ export async function buildCandidateUniverse(
 
   // Step 3: Query ORE (ORCA Retrieval Engine) for candidates
   const engine = new ORCARetrievalEngine();
-  const oreCandidates = await engine.retrieveCandidates(
+  const { candidates: oreCandidates } = await engine.retrieveCandidates(
     seeds.map(s => ({ name: s.name, artistId: s.artistId }))
   );
 
@@ -474,7 +474,7 @@ export async function buildCandidateUniverse(
     genreGrowthOpportunities: opportunities,
     debugStats: {
       totalSeeds: seeds.length,
-      duplicateMerges: oreCandidates.length - finalCandidates.length,
+      duplicateMerges: oreResult.metrics.duplicatesMerged,
       sourceBreakdown,
       candidatesPerOpportunity: {},
     },
