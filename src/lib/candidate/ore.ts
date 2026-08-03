@@ -856,8 +856,10 @@ export class ORCARetrievalEngine {
     };
 
     // ── DEPTH 1: Direct Neighbors ──
-    const depth1Promises = seeds.map(seed => fetchForSeed(seed, 1));
-    const depth1Results = await Promise.all(depth1Promises);
+    const depth1Settled = await Promise.allSettled(seeds.map(seed => fetchForSeed(seed, 1)));
+    const depth1Results = depth1Settled.map(result =>
+      result.status === 'fulfilled' ? result.value : []
+    );
 
     const depth1Candidates: ORECandidate[] = [];
     for (let i = 0; i < seeds.length; i++) {
@@ -881,8 +883,10 @@ export class ORCARetrievalEngine {
         .slice(0, 5)
         .map(c => ({ name: c.displayName, artistId: c.artistId }));
 
-      const depth2Promises = depth2Seeds.map(seed => fetchForSeed(seed, 2));
-      const depth2Results = await Promise.all(depth2Promises);
+      const depth2Settled = await Promise.allSettled(depth2Seeds.map(seed => fetchForSeed(seed, 2)));
+      const depth2Results = depth2Settled.map(result =>
+        result.status === 'fulfilled' ? result.value : []
+      );
 
       const depth2Candidates: ORECandidate[] = [];
       for (let i = 0; i < depth2Seeds.length; i++) {
