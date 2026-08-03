@@ -64,6 +64,9 @@ export async function GET(request: NextRequest) {
     const graphData = JSON.parse(dbUser.globeData);
     const nodes = graphData.nodes || [];
     const edges = graphData.edges || [];
+    const exploredNodeIds = nodes
+      .filter((n: { id: string; state?: string }) => n.state !== 'frontier')
+      .map((n: { id: string }) => n.id);
 
     const [
       relationships,
@@ -79,7 +82,15 @@ export async function GET(request: NextRequest) {
       prisma.userTerritoryAffinity.findMany({ where: { userId } }),
       prisma.territoryFamiliarity.findMany({ where: { userId } }),
       prisma.territoryAdoption.findMany({ where: { userId } }),
-      prisma.userArtistMemory.findMany({ where: { userId } }),
+      prisma.userArtistMemory.findMany({
+        where: { userId },
+        select: {
+          artistId: true,
+          memoryStrength: true,
+          memoryState: true,
+          persistence: true,
+        },
+      }),
       prisma.exploredArtist.findMany({
         where: {
           userId,
@@ -88,10 +99,10 @@ export async function GET(request: NextRequest) {
         select: { artistId: true },
       }),
       prisma.territoryMembership.findMany({
-        where: { artistId: { in: nodes.map((n: { id: string }) => n.id) } },
+        where: { artistId: { in: exploredNodeIds } },
       }),
       prisma.territoryBridge.findMany({
-        where: { artistId: { in: nodes.map((n: { id: string }) => n.id) } },
+        where: { artistId: { in: exploredNodeIds } },
       }),
     ]);
 
@@ -142,6 +153,9 @@ export async function GET(request: NextRequest) {
     };
 
     const enrichedNodes = nodes.map((node: unknown) => buildArtistSnapshot(node, ctx));
+    const enrichedNodeById = new Map<string, any>(
+      enrichedNodes.map((node: { id: string }) => [node.id, node]),
+    );
 
     const enrichedEdges = edges.map((edge: {
       source: string | { id: string };
@@ -150,8 +164,8 @@ export async function GET(request: NextRequest) {
     }) => {
       const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
       const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
-      const sourceNode = enrichedNodes.find((n: { id: string }) => n.id === sourceId);
-      const targetNode = enrichedNodes.find((n: { id: string }) => n.id === targetId);
+      const sourceNode = enrichedNodeById.get(sourceId);
+      const targetNode = enrichedNodeById.get(targetId);
       const isBridgeEdge =
         sourceNode && targetNode && sourceNode.territory !== targetNode.territory;
 
@@ -172,12 +186,21 @@ export async function GET(request: NextRequest) {
           .map((g: string) => g.toLowerCase()),
       ),
     ) as string[];
-    const enrichedGenres = rawGenresList.map((genre: string) => {
-      const genreArtists = enrichedNodes.filter((n: { genres?: string[] }) =>
-        n.genres?.map((g: string) => g.toLowerCase()).includes(genre),
-      );
-      return buildGenreSnapshot(genre, genreArtists, ctx);
+    const artistsByGenre = new Map<string, any[]>();
+    enrichedNodes.forEach((node: { genres?: string[] }) => {
+      node.genres?.forEach((g: string) => {
+        const genre = g.toLowerCase();
+        const artists = artistsByGenre.get(genre);
+        if (artists) {
+          artists.push(node);
+        } else {
+          artistsByGenre.set(genre, [node]);
+        }
+      });
     });
+    const enrichedGenres = rawGenresList.map((genre: string) =>
+      buildGenreSnapshot(genre, artistsByGenre.get(genre) || [], ctx),
+    );
 
     let userPosition = {
       primaryTerritoryId: 'Territory_v2_001',
@@ -232,11 +255,13 @@ export async function GET(request: NextRequest) {
         worldState.snapshotVersion > 0 &&
         clientVersion === worldState.snapshotVersion
       ) {
-        return NextResponse.json({
+        const response = NextResponse.json({
           status: 'ready',
           upToDate: true,
           snapshotVersion: worldState.snapshotVersion,
         });
+        response.headers.set('Cache-Control', 'private, max-age=10');
+        return response;
       }
 
       const candidateNodes = worldState.lastNodes || [];
