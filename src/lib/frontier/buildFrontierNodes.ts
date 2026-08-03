@@ -934,8 +934,17 @@ export async function buildFrontierNodes(
         },
         select: { id: true, displayName: true, imageUrl: true, rawGenres: true },
       });
-      const rowsById = new Map(dbRows.map((row) => [row.id, row]));
-      const rowsByName = new Map(dbRows.map((row) => [row.displayName.toLowerCase(), row]));
+      type EnrichedArtistRow = {
+        id: string;
+        displayName: string;
+        imageUrl: string | null;
+        rawGenres: string | null;
+      };
+      const typedDbRows = dbRows as EnrichedArtistRow[];
+      const rowsById = new Map<string, EnrichedArtistRow>(typedDbRows.map((row) => [row.id, row]));
+      const rowsByName = new Map<string, EnrichedArtistRow>(
+        typedDbRows.map((row) => [row.displayName.toLowerCase(), row]),
+      );
       const parseDbGenres = (raw: string | null): string[] => {
         if (!raw) return [];
         try {
