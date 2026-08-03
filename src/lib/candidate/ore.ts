@@ -348,33 +348,32 @@ export class MusicBrainzProvider implements RetrievalProvider {
   name = 'MusicBrainz';
 
   async retrieve(seed: { name: string; artistId: string }, depth: number): Promise<ORECandidate[]> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000); // 3 seconds timeout
-
     try {
       // 1. Search MusicBrainz for artist
       // Audit fix H3: respect MusicBrainz ~1 rps policy via the shared bucket.
+      // IMPORTANT: acquire BEFORE starting any abort timer. The 1 rps bucket
+      // serializes many seeds; a timer started before the limiter wait fires
+      // while queued, aborting every request instantly (AbortError flood).
       await musicbrainzLimiter.acquire();
       const searchUrl = `https://musicbrainz.org/ws/2/artist/?query=artist:${encodeURIComponent(seed.name)}&fmt=json`;
-      const searchRes = await fetch(searchUrl, {
+      const searchResult = await fetchWithTimeout(searchUrl, {
         headers: { 'User-Agent': 'MusicOrca/2.0.0 ( jeetdoesthings@example.com )' },
-        signal: controller.signal,
       });
+      if (!searchResult) return [];
 
-      if (!searchRes.ok) return [];
-      const searchData = await searchRes.json();
+      const searchData = await searchResult.json();
       const artist = searchData?.artists?.[0];
       if (!artist || !artist.id) return [];
 
-      // 2. Fetch artist relationships
+      // 2. Fetch artist relationships (fresh timeout — the search may have
+      // consumed most of a shared budget, so don't reuse one timer).
       await musicbrainzLimiter.acquire();
       const detailsUrl = `https://musicbrainz.org/ws/2/artist/${artist.id}?inc=artist-rels+label-rels&fmt=json`;
-      const detailsRes = await fetch(detailsUrl, {
+      const detailsRes = await fetchWithTimeout(detailsUrl, {
         headers: { 'User-Agent': 'MusicOrca/2.0.0 ( jeetdoesthings@example.com )' },
-        signal: controller.signal,
       });
+      if (!detailsRes) return [];
 
-      if (!detailsRes.ok) return [];
       const detailsData = await detailsRes.json();
       const relations = detailsData?.relations || [];
 
@@ -410,9 +409,29 @@ export class MusicBrainzProvider implements RetrievalProvider {
     } catch (err) {
       console.warn(`[ORE] MusicBrainz retrieval failed/timeout for "${seed.name}":`, err);
       return [];
-    } finally {
-      clearTimeout(timeout);
     }
+  }
+}
+
+/**
+ * Fetch with a per-call abort timeout. Returns null on timeout/network error so
+ * callers degrade gracefully (the old code shared one timer across the whole
+ * retrieve(), which aborted before the limiter even let the request through).
+ */
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit & { headers?: Record<string, string> },
+  timeoutMs = 5000,
+): Promise<Response | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res.ok ? res : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
