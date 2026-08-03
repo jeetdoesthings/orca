@@ -192,22 +192,24 @@ export async function POST(request: NextRequest) {
     // Artist rows already exist (selection + enrichAndPersistArtist).
     // Only patch fields on the same primary key — never create a second row
     // with a conflicting unique spotifyId.
-    for (const node of uniqueNodes) {
-      try {
-        await prisma.artist.update({
-          where: { id: node.id },
-          data: {
-            displayName: node.name,
-            normalizedName: normalizeArtistName(node.name),
-            rawGenres: JSON.stringify(node.genres),
-            popularity: node.popularity || 50,
-            ...(node.imageUrl ? { imageUrl: node.imageUrl } : {}),
-          },
-        });
-      } catch (err) {
-        console.warn(`[API sync-demo] artist update skipped for ${node.id}:`, err);
-      }
-    }
+    await Promise.all(
+      uniqueNodes.map(async (node) => {
+        try {
+          await prisma.artist.update({
+            where: { id: node.id },
+            data: {
+              displayName: node.name,
+              normalizedName: normalizeArtistName(node.name),
+              rawGenres: JSON.stringify(node.genres),
+              popularity: node.popularity || 50,
+              ...(node.imageUrl ? { imageUrl: node.imageUrl } : {}),
+            },
+          });
+        } catch (err) {
+          console.warn(`[API sync-demo] artist update skipped for ${node.id}:`, err);
+        }
+      }),
+    );
 
     await prisma.user.upsert({
       where: { spotifyId: 'demo-user' },
@@ -254,6 +256,8 @@ export async function POST(request: NextRequest) {
       exploredNodes: uniqueNodes,
       accessToken: '',
       fullMaterialization: true,
+      // Selection changed above — never accept a cached world from a prior run.
+      forceFresh: true,
     });
 
     return NextResponse.json({

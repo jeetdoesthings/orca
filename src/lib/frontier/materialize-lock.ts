@@ -27,19 +27,29 @@ const STALE_COMPUTING_MS = 2 * 60 * 1000;
 
 const inflight = new Map<string, Promise<MaterializeWorldResult>>();
 
+export interface MaterializeDedupedOptions extends MaterializeWorldOptions {
+  /**
+   * When true, bypass the cross-instance COMPUTING cache entirely.
+   * Use for callers that changed the user's underlying data (e.g. sync-demo
+   * replaced the artist selection) — a cached world from a prior run would be
+   * stale and wrong. In-process inflight dedupe still applies.
+   */
+  forceFresh?: boolean;
+}
+
 export async function materializeWorldDeduped(
   userId: string,
-  options: MaterializeWorldOptions = {},
+  options: MaterializeDedupedOptions = {},
 ): Promise<MaterializeWorldResult> {
   const existing = inflight.get(userId);
-  if (existing) return existing;
+  if (existing && !options.forceFresh) return existing;
 
   const p = (async () => {
     const active = await prisma.user.findUnique({
       where: { spotifyId: userId },
       select: { frontierStatus: true, updatedAt: true },
     });
-    if (active?.frontierStatus === 'COMPUTING') {
+    if (active?.frontierStatus === 'COMPUTING' && !options.forceFresh) {
       const ageMs = Date.now() - new Date(active.updatedAt).getTime();
       if (ageMs < STALE_COMPUTING_MS) {
         console.log(
@@ -56,8 +66,12 @@ export async function materializeWorldDeduped(
   })();
 
   // Register synchronously so concurrent callers observe the in-flight run.
+  // Only delete if still the same promise — a forceFresh call may have
+  // replaced the entry with a newer run.
   inflight.set(userId, p);
-  p.finally(() => inflight.delete(userId)).catch(() => {
+  p.finally(() => {
+    if (inflight.get(userId) === p) inflight.delete(userId);
+  }).catch(() => {
     /* original rejection is delivered to the awaiting caller */
   });
 
