@@ -700,6 +700,66 @@ export function Orca() {
                 const currentGraph = currentStore.graph;
                 if (!currentGraph) return;
 
+                // Refresh readiness/honesty flags from the server payload.
+                // Without this, a once-true fallback flag (e.g. persisted from an
+                // old materialization) survives the whole session even after a
+                // successful rebuild — the persistent "Rebuild frontier" banner.
+                if (
+                  data.leapBucketFallback !== undefined ||
+                  data.shoreBucketFallback !== undefined ||
+                  data.distanceVarianceCollapsed !== undefined ||
+                  data.recommendationSurface ||
+                  data.readinessState
+                ) {
+                  try {
+                    const { normalizeSurfaceIds } = await import(
+                      '@/lib/config/world'
+                    );
+                    const pollSurfaceBucketIds =
+                      data.recommendationSurface
+                        ? {
+                            comfort: normalizeSurfaceIds(
+                              data.recommendationSurface.comfort,
+                            ),
+                            expansion: normalizeSurfaceIds(
+                              data.recommendationSurface.expansion,
+                            ),
+                            leap: normalizeSurfaceIds(
+                              data.recommendationSurface.leap,
+                            ),
+                          }
+                        : null;
+                    currentStore.setReadinessPayload({
+                      recommendedTier: (data.recommendedTier ??
+                        data.recommendationSurface?.readiness?.recommendedTier ??
+                        currentStore.recommendedTier) as
+                        | 'comfort'
+                        | 'expansion'
+                        | 'leap'
+                        | null,
+                      readinessReasoning:
+                        data.readinessState?.reasoning ||
+                        data.recommendationSurface?.readiness?.reasoning ||
+                        '',
+                      leapBucketFallback:
+                        data.leapBucketFallback ??
+                        data.recommendationSurface?.leapBucketFallback ??
+                        false,
+                      shoreBucketFallback:
+                        data.shoreBucketFallback ??
+                        data.recommendationSurface?.shoreBucketFallback ??
+                        false,
+                      distanceVarianceCollapsed:
+                        data.distanceVarianceCollapsed ??
+                        data.recommendationSurface?.distanceVarianceCollapsed ??
+                        false,
+                      surfaceBucketIds: pollSurfaceBucketIds,
+                    });
+                  } catch {
+                    /* non-fatal: poll still merges nodes below */
+                  }
+                }
+
                 const newNodes = data.nodes || [];
                 const newEdges = data.edges || [];
                 const newGenres = data.genres || [];

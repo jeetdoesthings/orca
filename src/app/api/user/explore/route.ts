@@ -118,17 +118,22 @@ export async function POST(request: Request) {
     }
 
     // 3. Save the permanently updated taste graph back to globeData
-    await prisma.user.update({
-      where: { spotifyId: userId },
-      data: {
-        globeData: JSON.stringify({ nodes: updatedNodes, edges }),
-      },
-    });
+    // Wrap the DB writes in a transaction to prevent inconsistency on partial failure.
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { spotifyId: userId },
+        data: {
+          globeData: JSON.stringify({ nodes: updatedNodes, edges }),
+        },
+      }),
+    ]);
     await recordRecommendationMemory({
       userId,
       artistId,
       status: 'opened',
       sourceSnapshot: { route: '/api/user/explore', action },
+    }).catch(err => {
+      console.error('[API explore] recordRecommendationMemory failed (non-fatal):', err);
     });
 
     // 4. Trigger asynchronous background frontier recalculation with throttling

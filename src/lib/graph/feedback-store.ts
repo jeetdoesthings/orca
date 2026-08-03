@@ -1,34 +1,30 @@
-import fs from 'fs';
-import path from 'path';
 import { Observation } from './types';
 
-function getFilePath(userId: string): string {
-  const dir = path.join(process.cwd(), '.gemini');
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return path.join(dir, `observations_${userId}.json`);
-}
+/**
+ * In-memory observation store (serverless-safe).
+ * Previously used filesystem (.gemini/observations_<userId>.json), which breaks
+ * on Vercel serverless (ephemeral filesystem, multi-instance divergence).
+ *
+ * Observations are transient — they have TTL and are recomputed from genre/node
+ * state on each globe load. In-memory storage is sufficient for per-request
+ * evaluation and short warm-instance lifetimes. Cross-instance persistence would
+ * require a DB table, but the current design recomputes everything from scratch
+ * each time anyway, so persistence only avoids duplicates within a session.
+ */
+
+const store = new Map<string, Observation[]>();
 
 export function readObservations(userId: string): Observation[] {
-  const filePath = getFilePath(userId);
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-  try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('[FeedbackStore] Read observations error:', err);
-    return [];
-  }
+  return store.get(userId) ?? [];
 }
 
 export function writeObservations(userId: string, items: Observation[]) {
-  const filePath = getFilePath(userId);
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('[FeedbackStore] Write observations error:', err);
-  }
+  // Cap at 200 observations per user to prevent unbounded memory growth.
+  const capped = items.slice(-200);
+  store.set(userId, capped);
+}
+
+/** Clear observations for a user (useful for testing). */
+export function clearObservations(userId: string): void {
+  store.delete(userId);
 }

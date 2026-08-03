@@ -30,41 +30,44 @@ export async function POST(
         userId = (session as any).user.spotifyId;
       }
 
-      // Upsert UserArtistMemory
-      await prisma.userArtistMemory.upsert({
-        where: { userId_artistId: { userId, artistId: id } },
-        create: {
-          userId,
-          artistId: id,
-          memoryState: 'INTERNALIZED',
-          memoryStrength: 1.0,
-          familiarity: 1.0,
-          agency: 1.0,
-          explorationDepth: 1.0,
-          persistence: 1.0
-        },
-        update: {
-          memoryState: 'INTERNALIZED',
-          memoryStrength: 1.0,
-          familiarity: 1.0
-        }
-      });
+      // Upsert UserArtistMemory, ExploredArtist, and record recommendation memory.
+      // These are wrapped in a transaction to prevent partial-failure inconsistency.
+      await prisma.$transaction([
+        prisma.userArtistMemory.upsert({
+          where: { userId_artistId: { userId, artistId: id } },
+          create: {
+            userId,
+            artistId: id,
+            memoryState: 'INTERNALIZED',
+            memoryStrength: 1.0,
+            familiarity: 1.0,
+            agency: 1.0,
+            explorationDepth: 1.0,
+            persistence: 1.0
+          },
+          update: {
+            memoryState: 'INTERNALIZED',
+            memoryStrength: 1.0,
+            familiarity: 1.0
+          }
+        }),
+        prisma.exploredArtist.upsert({
+          where: { userId_artistId: { userId, artistId: id } },
+          create: {
+            userId,
+            artistId: id,
+            source: 'mark-explored'
+          },
+          update: {}
+        }),
+      ]);
       await recordRecommendationMemory({
         userId,
         artistId: id,
         status: 'accepted',
         sourceSnapshot: { route: '/api/artist/[id]/integrate' },
-      });
-
-      // Create ExploredArtist record
-      await prisma.exploredArtist.upsert({
-        where: { userId_artistId: { userId, artistId: id } },
-        create: {
-          userId,
-          artistId: id,
-          source: 'mark-explored'
-        },
-        update: {}
+      }).catch(err => {
+        console.error('[POST /api/artist/[id]/integrate] recordRecommendationMemory failed (non-fatal):', err);
       });
 
       // Update User globeData nodes to include this newly integrated artist!

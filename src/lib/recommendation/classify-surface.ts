@@ -49,11 +49,21 @@ function overlapRatio(a: string[], b: string[]): number {
 }
 
 function bucketFromIntent(intent: string, composite: number, overlap: number): ReadinessTier {
-  if (intent === 'Deep') return 'leap';
-  if (intent === 'Shore') return 'comfort';
-  if (intent === 'Shallow') return 'expansion';
-  if (composite >= 0.68 || overlap < 0.12) return 'leap';
-  if (composite <= 0.34 || overlap > 0.45) return 'comfort';
+  // Intent is the primary signal (honestly derived from the retrieval path:
+  // leap_seek → Deep, shore_seek → Shore, adjacency → Shallow).
+  // Distance acts as a sanity gate only at the extremes: an intent that
+  // strongly contradicts the measured distance is demoted.
+  const want: ReadinessTier | null =
+    intent === 'Deep' ? 'leap' : intent === 'Shore' ? 'comfort' : intent === 'Shallow' ? 'expansion' : null;
+  if (want) {
+    if (want === 'leap' && composite < 0.34) return 'expansion'; // claimed far, measured close
+    if (want === 'comfort' && composite > 0.67) return 'expansion'; // claimed close, measured far
+    return want;
+  }
+  if (composite >= 0.67) return 'leap';
+  if (composite <= 0.34) return 'comfort';
+  if (overlap < 0.12) return 'leap';
+  if (overlap > 0.45) return 'comfort';
   return 'expansion';
 }
 
@@ -146,7 +156,8 @@ export function classifyAndValidateSurface(input: ClassifySurfaceInput): Classif
     const distance = computeDisaggregatedDistance({
       userCentroid: input.userCentroid,
       userGenreProfile: input.userGenreProfile,
-      relationships: [],
+      // Real GRE relationships — distances must be personalized, not anonymous.
+      relationships: input.relationships ?? [],
       candidateGenres: genres.length ? genres : ['unknown'],
       candidatePopularity: c.popularity,
       priorObservedPlays: 0,

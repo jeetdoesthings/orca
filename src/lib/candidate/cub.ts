@@ -313,9 +313,10 @@ export async function buildCandidateUniverse(
 
   // Step 3: Query ORE (ORCA Retrieval Engine) for candidates
   const engine = new ORCARetrievalEngine();
-  const { candidates: oreCandidates } = await engine.retrieveCandidates(
+  const oreResult = await engine.retrieveCandidates(
     seeds.map(s => ({ name: s.name, artistId: s.artistId }))
   );
+  const oreCandidates = oreResult.candidates;
 
   const mappedCandidates: Candidate[] = [];
 

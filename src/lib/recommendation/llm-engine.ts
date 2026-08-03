@@ -109,7 +109,10 @@ function deterministicFallback(input: GenerateRecommendationInput): LLMRecommend
       spotifyId: c.spotifyId,
       artist: c.canonicalName,
       rank: i + 1,
-      distanceIntent: i % 5 === 0 ? 'Deep' : i % 2 === 0 ? 'Shallow' : 'Shore',
+      // Honest intent from the real retrieval path — NOT fabricated by list index.
+      // leap_seek candidates are genuinely distant (retrieved from far territories),
+      // shore_seek are genuinely close, adjacency is middle ground.
+      distanceIntent: c.retrievalPath === 'leap_seek' ? 'Deep' : c.retrievalPath === 'shore_seek' ? 'Shore' : 'Shallow',
       gatewayPath: c.relationships.map((r) => r.artistName).slice(0, 3),
       territoryFraming: c.sourceTerritory || c.genres[0] || 'adjacent territory',
       explanation: 'Grounded deterministic fallback from verified retrieval evidence.',
