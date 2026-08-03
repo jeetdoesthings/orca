@@ -216,7 +216,9 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
     const depth = get().explorationDepth;
     // Display list = ONLY in-band nodes (out-of-band fully removed from render path)
     // Last-resort remap only — honesty flags merge into store when remap fires
-    const { nodes: spreadNodes, meta } = filterFrontierByDepth(universe, depth);
+    const { nodes: spreadNodes, meta } = filterFrontierByDepth(universe, depth, {
+      surfaceBucketIds: get().surfaceBucketIds,
+    });
     const filtered = spreadNodes.filter(
       (n) => n.visible !== false && n.reachable !== false && n.inActiveDepth !== false,
     );
@@ -238,7 +240,9 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
       set({ explorationDepth: depth });
       return;
     }
-    const { nodes: spreadNodes, meta } = filterFrontierByDepth(universe, depth);
+    const { nodes: spreadNodes, meta } = filterFrontierByDepth(universe, depth, {
+      surfaceBucketIds: get().surfaceBucketIds,
+    });
     const filtered = spreadNodes.filter(
       (n) => n.visible !== false && n.reachable !== false && n.inActiveDepth !== false,
     );

@@ -10,7 +10,9 @@
 import type { OrcaNode } from '@/lib/graph/types';
 import {
   WorldConfig,
+  explorationDepthToBucket,
   type ExplorationDepthId,
+  type ReadinessTierId,
 } from '@/lib/config/world';
 
 const CLOSE_MAX = WorldConfig.explorationDepth.close.distanceMax;
@@ -113,6 +115,8 @@ export interface EnsureDistanceSpreadOptions {
    * Default true (last-resort remap with flags).
    */
   allowRemap?: boolean;
+  /** Materialized recommendation-surface ids, preferred over distance bands when present. */
+  surfaceBucketIds?: Record<ReadinessTierId, string[]> | null;
 }
 
 /**
@@ -213,6 +217,11 @@ export function filterFrontierByDepth(
   }
 
   const { distanceMin, distanceMax } = WorldConfig.explorationDepth[depth];
+  const bucket = explorationDepthToBucket(depth);
+  const bucketIds =
+    bucket && options?.surfaceBucketIds?.[bucket]?.length
+      ? new Set(options.surfaceBucketIds[bucket])
+      : null;
 
   return {
     nodes: spread.map((n) => {
@@ -229,7 +238,9 @@ export function filterFrontierByDepth(
         n.expansionDistance != null && Number.isFinite(n.expansionDistance)
           ? n.expansionDistance
           : 0.5;
-      const inBand = d >= distanceMin && d < distanceMax;
+      const inBand = bucketIds
+        ? bucketIds.has(n.id)
+        : d >= distanceMin && d < distanceMax;
       return {
         ...n,
         state: 'frontier' as const,
