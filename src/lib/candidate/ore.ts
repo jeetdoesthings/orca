@@ -5,6 +5,7 @@ import { getStandardisedComparisonKey } from '../identity';
 import { OreConfig } from '../config/ore';
 import { GENRE_ADJACENCY } from '../config/genre-adjacency';
 import { musicbrainzLimiter } from '../utils/rate-limiter';
+import { normalizeArtistName } from '../artists/enrich-identity';
 export interface OREEvidence {
   source: string; // e.g., 'Spotify Similar', 'Last.fm Similar', 'MusicBrainz Relationship', 'Local Graph'
   confidence: number;
@@ -123,20 +124,34 @@ async function cacheArtistInKnowledgeGraph(
     }
 
     try {
+      // Duplicate-prevention (audit): merge into an existing row with the same
+      // display name instead of creating a provider-keyed duplicate (the old
+      // code upserted by `artist.artistId`, producing lastfm-* / spotify-id /
+      // MBID rows for the same artist). Also write the canonical normalizedName
+      // format; the old `.toLowerCase().trim()` left spaces ("kanye west"),
+      // which made dedupe-by-normalizedName miss legacy rows.
+      const compactName = normalizeArtistName(artist.displayName);
+      const existingByName = await prisma.artist.findFirst({
+        where: { displayName: artist.displayName },
+        select: { id: true },
+      });
+      const effectiveId = existingByName?.id ?? artist.artistId;
+
       await prisma.artist.upsert({
-        where: { id: artist.artistId },
+        where: { id: effectiveId },
         update: {
           spotifyId: safeSpotifyId,
           popularity: artist.popularity,
           imageUrl: artist.imageUrl || null,
           metadata: JSON.stringify(metaPayload),
           sourceEvidence: JSON.stringify(artist.discoveryEvidence),
+          normalizedName: compactName,
         },
         create: {
-          id: artist.artistId,
+          id: effectiveId,
           spotifyId: safeSpotifyId,
           displayName: artist.displayName,
-          normalizedName: artist.displayName.toLowerCase().trim(),
+          normalizedName: compactName,
           rawGenres: JSON.stringify(artist.genres),
           popularity: artist.popularity,
           followers: artist.followers || 0,

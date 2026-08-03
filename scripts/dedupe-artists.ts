@@ -16,7 +16,10 @@ async function main() {
   const all = await prisma.artist.findMany();
   const groups = new Map<string, typeof all>();
   for (const a of all) {
-    const key = a.normalizedName || normalizeArtistName(a.displayName);
+    // The normalizedName column historically held two formats ("kanye west"
+    // vs "kanyewest"); always re-normalize before grouping so legacy rows
+    // merge with current ones.
+    const key = normalizeArtistName(a.normalizedName || a.displayName);
     if (!key) continue;
     const g = groups.get(key) || [];
     g.push(a);

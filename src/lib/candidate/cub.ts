@@ -24,18 +24,27 @@ async function saveDiscoveredArtistToDb(art: {
   sourceEvidence?: any;
 }) {
   try {
+    // Duplicate-prevention (audit): merge into an existing row with the same
+    // display name instead of creating a provider-keyed duplicate.
+    const existing = await prisma.artist.findFirst({
+      where: { displayName: art.displayName },
+      select: { id: true },
+    });
+    const effectiveId = existing?.id ?? art.id;
+    const compactName = art.displayName.toLowerCase().trim();
     await prisma.artist.upsert({
-      where: { id: art.id },
+      where: { id: effectiveId },
       update: {
         popularity: art.popularity,
         imageUrl: art.imageUrl || null,
         sourceEvidence: art.sourceEvidence ? JSON.stringify(art.sourceEvidence) : null,
+        normalizedName: compactName,
       },
       create: {
-        id: art.id,
+        id: effectiveId,
         spotifyId: art.spotifyId || null,
         displayName: art.displayName,
-        normalizedName: art.displayName.toLowerCase().trim(),
+        normalizedName: compactName,
         rawGenres: JSON.stringify(art.rawGenres),
         popularity: art.popularity,
         followers: 0,

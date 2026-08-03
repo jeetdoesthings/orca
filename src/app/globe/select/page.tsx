@@ -188,7 +188,23 @@ export default function SelectArtistsPage() {
         const res = await fetch('/api/artists');
         if (!res.ok) throw new Error('Failed to load artists');
         const data = await res.json();
-        setArtists(data);
+        // Defensive dedupe (audit): the catalog may contain legacy duplicate
+        // rows for the same artist (lastfm-* vs spotify-id vs MBID). Keep the
+        // row with the most data, one per normalized name.
+        const byKey = new Map<string, Artist>();
+        for (const a of data as Artist[]) {
+          const key = (a.name || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '');
+          if (!key) continue;
+          const prev = byKey.get(key);
+          const score = (x: Artist) =>
+            (x.imageUrl ? 1 : 0) + (x.genres?.length || 0) * 0.1 + (x.popularity || 0) / 1000;
+          if (!prev || score(a) > score(prev)) byKey.set(key, a);
+        }
+        setArtists(Array.from(byKey.values()));
       } catch (err: any) {
         console.error(err);
         setErrorMessage('Failed to fetch artists. Please reload the page.');
