@@ -27,6 +27,7 @@ import {
 } from '@/lib/artists/enrich-identity';
 import { resolveAudioSignature } from '@/lib/audio/resolve-signature';
 import { isDemoEnabled } from '@/lib/auth/demo-user';
+import { checkRateLimit } from '@/lib/utils/rate-limit-guard';
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
@@ -36,6 +37,19 @@ export async function POST(request: NextRequest) {
     if (!isDemoEnabled()) {
       return NextResponse.json({ error: 'Demo mode is disabled' }, { status: 403 });
     }
+
+    // Rate limit: full demo rebuild is a ~2min pipeline. 2/min per IP.
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown-demo-ip';
+    const rl = checkRateLimit(`sync-demo:${ip}`, 2);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Demo rebuild in progress. Try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+      );
+    }
+
     const { artistIds } = await request.json();
 
     if (!Array.isArray(artistIds) || artistIds.length < 5 || artistIds.length > 20) {

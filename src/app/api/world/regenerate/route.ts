@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { materializeWorldDeduped } from '@/lib/frontier/materialize-lock';
 import { parseRequestRuntimeConfig } from '@/lib/config/request-runtime';
 import { resolveDemoUser } from '@/lib/auth/demo-user';
+import { checkRateLimit } from '@/lib/utils/rate-limit-guard';
 export const maxDuration = 300;
 
 /**
@@ -32,6 +33,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
       userId = (session as any).user.spotifyId;
+    }
+
+    // Rate limit: full materialization is expensive — 3/min per user.
+    const rl = checkRateLimit(`regenerate:${userId}`, 3);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many rebuilds. Try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+      );
     }
 
     const result = await materializeWorldDeduped(userId, { fullMaterialization: true });
