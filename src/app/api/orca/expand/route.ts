@@ -93,7 +93,9 @@ export async function POST(request: NextRequest) {
     let frontierNodes = worldState.lastNodes || [];
 
     if (frontierNodes.length === 0) {
-      const result = await materializeWorld(userId, {
+      // Sole-writer path — dedupe concurrent runs per user.
+      const { materializeWorldDeduped } = await import('@/lib/frontier/materialize-lock');
+      const result = await materializeWorldDeduped(userId, {
         exploredNodes,
         accessToken,
         sliderValue,

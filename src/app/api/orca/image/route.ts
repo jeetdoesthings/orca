@@ -41,8 +41,19 @@ async function getSpotifyToken(): Promise<string> {
   return cachedToken!;
 }
 
-// ── In-memory result cache ──
+// ── In-memory result cache (bounded — LRU-style eviction) ──
 const imageCache = new Map<string, { imageUrl: string }>();
+const IMAGE_CACHE_MAX = 2000;
+function cacheSet(key: string, value: { imageUrl: string }) {
+  if (imageCache.has(key)) imageCache.delete(key);
+  imageCache.set(key, value);
+  // Evict oldest entries when over cap (Map preserves insertion order).
+  while (imageCache.size > IMAGE_CACHE_MAX) {
+    const oldest = imageCache.keys().next().value;
+    if (oldest === undefined) break;
+    imageCache.delete(oldest);
+  }
+}
 
 // ── Cached popularity lookup ──
 const CACHE_FILE_PATH = path.join(process.cwd(), 'src/lib/graph/orca-cache.json');
@@ -387,7 +398,7 @@ export async function GET(request: NextRequest) {
       imageUrl: resolved.imageUrl,
       source: resolved.source,
     };
-    imageCache.set(cacheKey, result);
+    cacheSet(cacheKey, result);
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=3600',
@@ -397,6 +408,6 @@ export async function GET(request: NextRequest) {
 
   // Cache empty results to avoid server hammering
   const fallback = { url: '', imageUrl: '', source: 'none' };
-  imageCache.set(cacheKey, fallback as any);
+  cacheSet(cacheKey, fallback as any);
   return NextResponse.json(fallback);
 }

@@ -25,6 +25,16 @@ export async function POST(request: Request) {
     const userId = session.user.spotifyId;
     const accessToken = session.spotifyAccessToken;
 
+    // Dedupe: if a sync is already in progress, don't start a second one.
+    const existing = await prisma.user.findUnique({
+      where: { spotifyId: userId },
+      select: { syncStatus: true },
+    });
+    if (existing?.syncStatus === 'SYNCING') {
+      console.log(`[API user/sync] ${userId} already SYNCING — skipping duplicate`);
+      return NextResponse.json({ status: 'already-syncing' });
+    }
+
     // Check if user exists, upsert with SYNCING status
     await prisma.user.upsert({
       where: { spotifyId: userId },

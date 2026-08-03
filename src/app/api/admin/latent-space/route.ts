@@ -21,40 +21,29 @@ export async function GET(req: Request) {
       artistCount,
       embeddingCount,
       traitCount,
-      embeddings,
+      avgConfidenceResult,
       traits
     ] = await Promise.all([
       prisma.artist.count(),
       prisma.artistEmbedding.count(),
       prisma.traitDefinition.count(),
-      prisma.artistEmbedding.findMany({
-        select: { confidence: true }
+      prisma.artistEmbedding.aggregate({
+        _avg: { confidence: true },
       }),
       prisma.traitDefinition.findMany({
         select: { id: true, family: true, activeFlag: true }
       })
     ]);
 
-    const totalConfidence = embeddings.reduce((sum: number, e: any) => sum + e.confidence, 0);
-    const avgConfidence = embeddingCount > 0 ? totalConfidence / embeddingCount : 1.0;
-
-    // Calculate confidence band distribution
-    let high = 0;   // >= 0.7
-    let medium = 0; // 0.4 to 0.7
-    let low = 0;    // < 0.4
-
-    embeddings.forEach((e: any) => {
-      if (e.confidence >= 0.7) high++;
-      else if (e.confidence >= 0.4) medium++;
-      else low++;
-    });
+    const avgConfidence = embeddingCount > 0
+      ? Math.round((avgConfidenceResult._avg.confidence ?? 0) * 1000) / 1000
+      : 1.0;
 
     return NextResponse.json({
       artistCount,
       embeddingCount,
       traitCount,
       avgConfidence,
-      confidenceDistribution: { high, medium, low },
       traits,
       fusionVersion: FUSION_CONFIG.version,
       normalizationVersion: FUSION_CONFIG.normalizationVersion
