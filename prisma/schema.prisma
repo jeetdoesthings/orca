@@ -2,11 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Part 16: url from env. Default local: file:./dev.db (see .env.example).
-// Postgres cutover: set provider = "postgresql" and DATABASE_URL=postgresql://…
-// Dual-running both providers is not supported by Prisma — switch provider at cutover.
+// Part 16: Postgres is the production datasource. Local dev uses the same
+// provider via DATABASE_URL (Homebrew postgres or docker-compose.yml).
+// To run the SQLite dev snapshot instead, you must switch provider back to
+// "sqlite" — Prisma does not support dual providers in one schema.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

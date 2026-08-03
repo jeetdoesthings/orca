@@ -1,25 +1,29 @@
-# Part 16 — local/staging Postgres for ORCA
-# Usage: docker compose up -d postgres
-#        export DATABASE_URL=postgresql://orca:orca@localhost:5432/orca
-#        # then set provider = "postgresql" in prisma/schema.prisma and:
-#        npx prisma db push
+# Local Postgres for ORCA development / tests.
+# (Homebrew alternative: brew install postgresql@16 && brew services start postgresql@16)
+#
+# Usage:
+#   docker compose up -d
+#   DATABASE_URL="postgresql://orca:orca@localhost:5432/orca" npm run db:push
+#
+# On Homebrew the default superuser is your macOS username (no password):
+#   DATABASE_URL="postgresql://$(whoami)@localhost:5432/orca"
 
 services:
   postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    image: postgres:16
+    container_name: orca-postgres
     environment:
       POSTGRES_USER: orca
       POSTGRES_PASSWORD: orca
       POSTGRES_DB: orca
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - orca_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U orca -d orca"]
+      test: ['CMD-SHELL', 'pg_isready -U orca -d orca']
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 10
 
 volumes:

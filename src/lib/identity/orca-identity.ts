@@ -270,11 +270,14 @@ export async function buildTasteIdentity(
       at: e.timestamp.toISOString(),
       trackId: e.trackId,
     })),
-    currentFrontier: uniqueArtists([
-      ...frontierNodes.map((n) => nodeArtist(n, 'frontierData')),
-      ...shownRecommendationArtists,
-      ...typedServeLogs.map((s) => memoryArtist(s.artistId, 'RecommendationServeLog', s.decisionScore ?? 0.5)),
-    ]),
+    // currentFrontier = what is ON THE MAP right now (the persisted frontier).
+    // Historical shown/served artists are deliberately NOT included: the LLM
+    // fallback blocks currentFrontierIds, and an unbounded history (serve logs
+    // grow ~100+ rows per materialization) eventually covers the whole
+    // candidate pool, starving every future rebuild to ~0 recommendations.
+    // Re-surfacing previously-shown artists is desired for taste expansion —
+    // grounding + memories still track their accept/ignore status.
+    currentFrontier: uniqueArtists(frontierNodes.map((n) => nodeArtist(n, 'frontierData'))),
     tasteDrift: {
       recentGenres: recentGenreRanks.slice(0, 8).map((g) => g.genre),
       longTermGenres: genreRanks.slice(0, 8).map((g) => g.genre),

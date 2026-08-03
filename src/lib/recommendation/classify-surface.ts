@@ -13,6 +13,7 @@ import type { DecisionProfile, RecommendationSurface } from '@/lib/ocse/ocse-typ
 import type { TasteIdentity } from '@/lib/identity/orca-identity';
 import type { VerifiedRecommendation } from './grounding';
 import type { LeapSeekMeta } from '@/lib/frontier/types';
+import { OcseConfig } from '@/lib/config/ocse';
 
 export interface ClassifySurfaceInput {
   userId: string;
@@ -170,6 +171,15 @@ export function classifyAndValidateSurface(input: ClassifySurfaceInput): Classif
     c.discoveryConfidence = verified.confidence;
     c.retrievalPath = c.retrievalPath ?? verified.artist.retrievalPath;
     c.sourceTerritory = c.sourceTerritory ?? verified.artist.sourceTerritory ?? genres[0];
+    // Write the four-axis distance back to the SHARED candidate object so the
+    // node builder (buildFrontierNodes) displays the same distance the surface
+    // bucketed on. Without this, nodes fall back to the legacy distance fn and
+    // show e.g. 0.83 while the surface profile says 0.16 — tier UI vs node UI
+    // disagree.
+    verified.candidate.distanceComponents = distance;
+    verified.candidate.expansionDistance = c.expansionDistance;
+    verified.candidate.expansionBand = c.expansionBand;
+    verified.candidate.confidenceTag = c.confidenceTag;
     const overlap = overlapRatio(homeGenres, genres);
     const bucket = bucketFromIntent(verified.recommendation.distanceIntent, c.expansionDistance, overlap);
     if (bucket === 'leap' && c.sourceTerritory) leapTargets.add(c.sourceTerritory);
@@ -190,6 +200,47 @@ export function classifyAndValidateSurface(input: ClassifySurfaceInput): Classif
     buckets[bucket].push(profile);
   }
 
+  // ── Honest leap refill ──
+  // The four-axis composite is compressed (0.1-0.3 for most users), so a
+  // strictly distance-gated leap bucket stays empty forever. When leap is
+  // starved, MOVE the most-distant candidates (from any bucket) into leap and
+  // flag leapBucketFallback so the UI honestly says "few genuinely distant
+  // candidates found yet". Mirrors the OCSE allowLeapWiden reassignment.
+  let leapWidened = false;
+  const minPop = OcseConfig.minBucketPopulation;
+  if (buckets.leap.length < minPop) {
+    const notInLeap = candidates
+      .filter(
+        (c) =>
+          !buckets.leap.some((p) => p.candidateId === c.artistId) &&
+          (c.expansionDistance ?? 0) > 0.1,
+      )
+      .sort((a, b) => (b.expansionDistance ?? 0) - (a.expansionDistance ?? 0));
+    const target = Math.min(minPop - buckets.leap.length, notInLeap.length);
+    for (let i = 0; i < target; i++) {
+      const c = notInLeap[i];
+      const verified = accepted.find((v) => v.candidate.artistId === c.artistId);
+      if (!verified) continue;
+      leapWidened = true;
+      // Move out of its current bucket (comfort/expansion) into leap.
+      for (const t of ['comfort', 'expansion'] as const) {
+        const idx = buckets[t].findIndex((p) => p.candidateId === c.artistId);
+        if (idx >= 0) buckets[t].splice(idx, 1);
+      }
+      const distanceFit = Math.min(1, (c.expansionDistance ?? 0.5) / 0.7);
+      buckets.leap.push(
+        profileFor({
+          candidate: c,
+          verified,
+          bucket: 'leap',
+          distanceFit: Math.round(Math.max(0.15, distanceFit) * 1000) / 1000,
+          rank: Math.max(1, verified.recommendation.rank),
+        }),
+      );
+      if (c.sourceTerritory) leapTargets.add(c.sourceTerritory);
+    }
+  }
+
   const sortProfiles = (profiles: DecisionProfile[]) =>
     profiles.sort((a, b) => {
       const ra = accepted.find((v) => v.candidate.artistId === a.candidateId)?.recommendation.rank ?? 999;
@@ -208,7 +259,7 @@ export function classifyAndValidateSurface(input: ClassifySurfaceInput): Classif
     leap: sortProfiles(buckets.leap),
     readiness,
     generatedAt: new Date().toISOString(),
-    leapBucketFallback: buckets.leap.length === 0,
+    leapBucketFallback: buckets.leap.length === 0 || leapWidened,
     leapSeekInLeapCount: buckets.leap.filter((p) => {
       const c = candidates.find((x) => x.artistId === p.candidateId);
       return c?.retrievalPath === 'leap_seek';

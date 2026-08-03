@@ -133,8 +133,11 @@ describe('grounding and distance classification', () => {
     }).surface;
 
     expect(surface.comfort.map((p) => p.candidateId)).toContain('shore');
-    expect(surface.expansion.map((p) => p.candidateId)).toContain('shallow');
+    // With a 3-candidate pool and minPop=8, the honest leap refill MOVES the
+    // most-distant remaining candidate (shallow/soul) into leap so the tier is
+    // never empty. Expansion may therefore be empty in the degenerate case.
     expect(surface.leap.map((p) => p.candidateId)).toContain('deep');
+    expect(surface.leap.map((p) => p.candidateId)).toContain('shallow');
   });
 
   it('demotes claimed-far intent when measured distance is very close (sanity gate)', async () => {
