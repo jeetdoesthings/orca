@@ -1,4 +1,5 @@
 import type { RetrievedArtist } from './types';
+import { prisma } from '@/lib/prisma';
 import { spotifyLimiter } from '@/lib/utils/rate-limiter';
 
 interface SpotifyArtistResult {
@@ -46,6 +47,24 @@ async function searchSpotifyArtist(
 
 const BATCH_SIZE = 10;
 
+type CachedArtistRow = {
+  id: string;
+  spotifyId: string | null;
+  displayName: string;
+  rawGenres: string | null;
+  popularity: number | null;
+};
+
+function parseGenres(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return raw.split(',').map((g) => g.trim()).filter(Boolean);
+  }
+}
+
 export async function enrichRetrievedArtistsWithSpotify(
   artists: RetrievedArtist[],
   accessToken: string,
@@ -53,15 +72,46 @@ export async function enrichRetrievedArtistsWithSpotify(
   if (!accessToken || artists.length === 0) return artists;
 
   const out: RetrievedArtist[] = new Array(artists.length);
+  const rows = await prisma.artist.findMany({
+    where: { displayName: { in: artists.map((artist) => artist.canonicalName) } },
+    select: { id: true, spotifyId: true, displayName: true, rawGenres: true, popularity: true },
+  });
+  const typedRows = rows as CachedArtistRow[];
+  const rowsByName = new Map<string, CachedArtistRow>(
+    typedRows.map((row) => [nameKey(row.displayName), row]),
+  );
 
   // Audit fix H3: batch the per-artist searches (was one sequential fetch per
-  // artist, up to ~220 calls with no 429 handling).
+  // artist, up to ~120 calls with no 429 handling).
   for (let i = 0; i < artists.length; i += BATCH_SIZE) {
     const batch = artists.slice(i, i + BATCH_SIZE);
     await Promise.all(
       batch.map(async (artist, j) => {
         const idx = i + j;
         try {
+          const cached = rowsByName.get(nameKey(artist.canonicalName));
+          if (cached) {
+            const genres = parseGenres(cached.rawGenres);
+            out[idx] = {
+              ...artist,
+              spotifyId: cached.spotifyId ?? artist.spotifyId ?? cached.id,
+              genres: Array.from(new Set([...(artist.genres || []), ...genres])),
+              tags: Array.from(new Set([...(artist.tags || []), ...genres])),
+              popularity: cached.popularity ?? artist.popularity,
+              availability: { ...artist.availability, spotify: Boolean(cached.spotifyId ?? cached.id) },
+              evidence: [
+                ...artist.evidence,
+                {
+                  source: 'local_catalog',
+                  id: cached.id,
+                  confidence: 0.86,
+                  note: 'metadata enrichment from Artist table cache',
+                },
+              ],
+            };
+            return;
+          }
+
           const data = await searchSpotifyArtist(artist.canonicalName, accessToken);
           const items: SpotifyArtistResult[] = data?.items ?? [];
           const target = nameKey(artist.canonicalName);

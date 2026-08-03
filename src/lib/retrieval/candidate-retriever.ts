@@ -95,7 +95,7 @@ export async function retrieveCandidatePool(
   identity: TasteIdentity,
   accessToken: string,
   seedCandidates: Candidate[] = [],
-  limit = 220,
+  limit = 120,
 ): Promise<RetrievalPoolResult> {
   const knownNames = new Set([
     ...identity.integratedArtists.map((a) => nameKey(a.name)),
