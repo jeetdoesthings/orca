@@ -13,6 +13,13 @@
  * moves to this table.
  */
 export const OreConfig = {
+  /**
+   * Depth-2 recursive expansion (neighbors of neighbors) doubles external API
+   * cost for marginal recall. Default OFF — the demo/materialize path runs
+   * depth-1 only, which keeps sync-demo fast without hurting surface quality.
+   */
+  enableDepth2Expansion: false,
+
   /** Per-source relationship confidence — assigned at the ORE provider call
    * site to the ORECandidate.relationshipConfidence field.
    *

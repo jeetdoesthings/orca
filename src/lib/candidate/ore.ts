@@ -294,22 +294,33 @@ export class LastFmProvider implements RetrievalProvider {
 
       const candidates: ORECandidate[] = [];
 
-      for (const sim of similars) {
-        const mbid = sim.mbid || '';
-        let artistId = mbid || `lastfm-${getStandardisedComparisonKey(sim.name)}`;
-        let popularity = 45;
-        let imageUrl = '';
-        let genres: string[] = [];
+      // Parallelize Spotify metadata lookups across the 10 similars.
+      // The 3rps Spotify bucket still serializes the actual network calls,
+      // but this removes the per-iteration sequential await (one of the
+      // dominant time slices in the 115s sync-demo run).
+      const spotifyResolved = await Promise.all(
+        similars.map(async (sim) => {
+          const mbid = sim.mbid || '';
+          let artistId = mbid || `lastfm-${getStandardisedComparisonKey(sim.name)}`;
+          let popularity = 45;
+          let imageUrl = '';
+          let genres: string[] = [];
 
-        // Try Spotify metadata resolution to obtain actual popularity and image
-        const sArtist = await fetchSpotifyArtist(sim.name);
-        if (sArtist) {
-          artistId = `spotify-${sArtist.id}`;
-          popularity = sArtist.popularity;
-          imageUrl = sArtist.imageUrl;
-          genres = sArtist.genres || [];
-        }
+          // Try Spotify metadata resolution to obtain actual popularity and image
+          const sArtist = await fetchSpotifyArtist(sim.name);
+          if (sArtist) {
+            artistId = `spotify-${sArtist.id}`;
+            popularity = sArtist.popularity;
+            imageUrl = sArtist.imageUrl;
+            genres = sArtist.genres || [];
+          }
 
+          return { sim, mbid, artistId, popularity, imageUrl, genres, sArtist };
+        }),
+      );
+
+      for (const r of spotifyResolved) {
+        const { sim, mbid, artistId, popularity, imageUrl, genres, sArtist } = r;
         candidates.push({
           artistId,
           spotifyId: sArtist?.id || undefined,
@@ -476,42 +487,46 @@ async function hydrateEmptyCandidateGenres(candidates: ORECandidate[]): Promise<
   const byId = new Map(rows.map((r) => [r.id, r]));
   const byName = new Map(rows.map((r) => [r.normalizedName, r]));
 
-  for (const cand of need) {
-    const row =
-      byId.get(cand.artistId) ||
-      byName.get(cand.displayName.toLowerCase().trim());
-    if (row?.rawGenres) {
-      try {
-        const g = JSON.parse(row.rawGenres);
-        if (Array.isArray(g) && g.length > 0) {
-          cand.genres = g.filter((x: unknown) => typeof x === 'string' && x.length > 0);
+  // Parallelize Spotify hydration — the 3rps bucket serializes network calls,
+  // but removing the sequential await per candidate cuts the wall time.
+  await Promise.all(
+    need.map(async (cand) => {
+      const row =
+        byId.get(cand.artistId) ||
+        byName.get(cand.displayName.toLowerCase().trim());
+      if (row?.rawGenres) {
+        try {
+          const g = JSON.parse(row.rawGenres);
+          if (Array.isArray(g) && g.length > 0) {
+            cand.genres = g.filter((x: unknown) => typeof x === 'string' && x.length > 0);
+          }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
+        if (!cand.imageUrl && row.imageUrl) cand.imageUrl = row.imageUrl;
       }
-      if (!cand.imageUrl && row.imageUrl) cand.imageUrl = row.imageUrl;
-    }
 
-    if ((!cand.genres || cand.genres.length === 0) && cand.displayName) {
-      try {
-        const sArtist = await fetchSpotifyArtist(cand.displayName);
-        if (sArtist?.genres?.length) {
-          cand.genres = sArtist.genres;
-          if (sArtist.imageUrl && !cand.imageUrl) cand.imageUrl = sArtist.imageUrl;
-          if (sArtist.popularity != null) cand.popularity = sArtist.popularity;
-          if (sArtist.id) {
-            cand.spotifyId = sArtist.id;
-            if (!cand.artistId.startsWith('spotify-') && !/^[0-9A-Za-z]{15,30}$/.test(cand.artistId)) {
-              cand.artistId = `spotify-${sArtist.id}`;
+      if ((!cand.genres || cand.genres.length === 0) && cand.displayName) {
+        try {
+          const sArtist = await fetchSpotifyArtist(cand.displayName);
+          if (sArtist?.genres?.length) {
+            cand.genres = sArtist.genres;
+            if (sArtist.imageUrl && !cand.imageUrl) cand.imageUrl = sArtist.imageUrl;
+            if (sArtist.popularity != null) cand.popularity = sArtist.popularity;
+            if (sArtist.id) {
+              cand.spotifyId = sArtist.id;
+              if (!cand.artistId.startsWith('spotify-') && !/^[0-9A-Za-z]{15,30}$/.test(cand.artistId)) {
+                cand.artistId = `spotify-${sArtist.id}`;
+              }
             }
           }
+        } catch {
+          /* leave empty — ungrounded path drops later */
         }
-      } catch {
-        /* leave empty — ungrounded path drops later */
       }
-    }
-    // Do NOT set genres to ['pop'] when still empty.
-  }
+      // Do NOT set genres to ['pop'] when still empty.
+    }),
+  );
 }
 
 // ── MAIN ORE ENGINE CLASS ──
@@ -888,7 +903,8 @@ export class ORCARetrievalEngine {
     finalCandidates.push(...depth1Candidates);
 
     // ── DEPTH 2: Neighbors of Neighbors (Recursive Expansion) ──
-    if (maxDepth >= 2 && depth1Candidates.length > 0) {
+    // Disabled by default — doubles external API cost for marginal recall.
+    if (OreConfig.enableDepth2Expansion && maxDepth >= 2 && depth1Candidates.length > 0) {
       // Pick top 5 most highly relevant, obscure, or interesting candidates from depth 1 to expand
       const depth2Seeds = depth1Candidates
         .sort((a, b) => b.relationshipConfidence - a.relationshipConfidence)
