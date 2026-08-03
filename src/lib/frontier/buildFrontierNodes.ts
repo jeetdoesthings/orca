@@ -37,7 +37,7 @@ import { diversifyExpansionDistancesIfCollapsed } from './stages/diversify-dista
 import type { BuildFrontierOptions, FrontierBuildResult } from './types';
 import { buildTasteIdentity } from '@/lib/identity/orca-identity';
 import { retrieveCandidatePool } from '@/lib/retrieval/candidate-retriever';
-import { generateLLMRecommendations } from '@/lib/recommendation/llm-engine';
+import { generateLLMRecommendations, isGeminiQuotaExhausted } from '@/lib/recommendation/llm-engine';
 import { groundLLMRecommendations } from '@/lib/recommendation/grounding';
 import { classifyAndValidateSurface } from '@/lib/recommendation/classify-surface';
 import { computeGenreRelationships } from '@/lib/gre/gre';
@@ -468,7 +468,8 @@ export async function buildFrontierNodes(
   const rejectedIds = new Set(identity.rejectedArtists.map((a) => a.id));
   const integratedIds = new Set(identity.integratedArtists.map((a) => a.id));
   const currentFrontierIds = new Set(identity.currentFrontier.map((a) => a.id));
-  const llm = options?.skipOcse
+  const shouldSkipLLM = options?.skipOcse || !process.env.GEMINI_API_KEY || isGeminiQuotaExhausted();
+  const llm = shouldSkipLLM
     ? {
         recommendations: retrieval.candidates.slice(0, 120).map((c, i) => ({
           artistId: c.artistId,
@@ -484,7 +485,7 @@ export async function buildFrontierNodes(
           albumSuggestions: [],
           evidenceIds: c.discoveryContext.sources.map((s) => String(s.metadata?.id || s.source)),
         })),
-        model: 'deterministic-skip',
+        model: options?.skipOcse ? 'deterministic-skip' : 'deterministic-fallback',
         promptVersion: 'orca-llm-recommendation-v1',
         validationErrors: [],
       }
@@ -923,9 +924,61 @@ export async function buildFrontierNodes(
     try {
       const { enrichArtistIdentity, isWeakImageUrl, persistArtistImageAndGenres } =
         await import('@/lib/artists/enrich-identity');
-      const slice = needEnrich.slice(0, 120);
-      for (let i = 0; i < slice.length; i += 8) {
-        const batch = slice.slice(i, i + 8);
+
+      const dbRows = await prisma.artist.findMany({
+        where: {
+          OR: [
+            { id: { in: needEnrich.map((n) => n.id) } },
+            { displayName: { in: needEnrich.map((n) => n.name) } },
+          ],
+        },
+        select: { id: true, displayName: true, imageUrl: true, rawGenres: true },
+      });
+      const rowsById = new Map(dbRows.map((row) => [row.id, row]));
+      const rowsByName = new Map(dbRows.map((row) => [row.displayName.toLowerCase(), row]));
+      const parseDbGenres = (raw: string | null): string[] => {
+        if (!raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+        } catch {
+          return raw.split(',').map((g) => g.trim()).filter(Boolean);
+        }
+      };
+
+      const missingAfterDb = needEnrich.filter((n) => {
+        const row = rowsById.get(n.id) ?? rowsByName.get(n.name.toLowerCase());
+        if (!row) return true;
+
+        const dbGenres = resolveArtistGenres(parseDbGenres(row.rawGenres), n.name);
+        if (row.imageUrl && !isWeakImageUrl(row.imageUrl) && !n.imageUrl) {
+          n.imageUrl = row.imageUrl;
+        }
+        if (dbGenres.length > 0) {
+          const current = resolveArtistGenres(n.genres || [], n.name);
+          const currentWeak =
+            current.length === 0 ||
+            current.every((g) => {
+              const s = String(g).toLowerCase();
+              return s === 'pop' || s === 'unknown';
+            });
+          if (currentWeak) n.genres = dbGenres;
+        }
+
+        const hasImage = Boolean(n.imageUrl && !isWeakImageUrl(n.imageUrl));
+        const genres = resolveArtistGenres(n.genres || [], n.name);
+        const hasGenres =
+          genres.length > 0 &&
+          !genres.every((g) => {
+            const s = String(g).toLowerCase();
+            return s === 'pop' || s === 'unknown';
+          });
+        return !(hasImage && hasGenres);
+      });
+
+      const slice = missingAfterDb.slice(0, 120);
+      for (let i = 0; i < slice.length; i += 16) {
+        const batch = slice.slice(i, i + 16);
         await Promise.all(
           batch.map(async (n) => {
             try {
@@ -978,10 +1031,6 @@ export async function buildFrontierNodes(
             }
           }),
         );
-        // Soft pace for Deezer public API
-        if (i + 8 < slice.length) {
-          await new Promise((r) => setTimeout(r, 80));
-        }
       }
     } catch (err) {
       console.warn('[CUB Frontier Layout] Image/genre backfill skipped:', err);

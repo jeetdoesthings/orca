@@ -1,3 +1,25 @@
+/**
+ * LLM taste-expansion assessment
+ *
+ * Verdict: using an LLM is wise for explanation quality, territory framing,
+ * and turning deterministic evidence into a coherent musical journey. It is
+ * not wise as the primary ranking or sorting mechanism. Ranking should remain
+ * deterministic, grounded in retrieved candidates, relationship evidence,
+ * availability, novelty, and user-state filters.
+ *
+ * Risks: the Gemini request currently sits on the materialization critical path,
+ * so 3-15s model latency directly blocks frontier construction. Free-tier quota
+ * is also tiny. When quota is exhausted, the system silently degrades to the
+ * deterministic fallback, which preserves function but changes explanation and
+ * ordering behavior without user-visible intent.
+ *
+ * Recommendation: treat the LLM as optional and cached enrichment, not a blocking
+ * dependency for recommendation correctness. The deterministic engine should be
+ * able to materialize immediately. LLM calls should be skipped when unavailable
+ * or quota-exhausted, capped by a short timeout, grounded against the candidate
+ * pool, and cached per identity/candidate/goals signature.
+ */
+import { createHash } from 'node:crypto';
 import type { TasteIdentity } from '@/lib/identity/orca-identity';
 import type { RetrievedArtist } from '@/lib/retrieval/types';
 
@@ -37,9 +59,36 @@ export interface GenerateRecommendationInput {
 
 const PROMPT_VERSION = 'orca-llm-recommendation-v1';
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_TIMEOUT_MS = 15_000;
+const LLM_CANDIDATE_LIMIT = 50;
+const recommendationCache = new Map<string, LLMRecommendationResult>();
 
 function candidateId(c: RetrievedArtist): string {
   return c.spotifyId || c.musicBrainzId || c.canonicalName;
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stableStringify(child)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function recommendationCacheKey(input: GenerateRecommendationInput): string {
+  return createHash('sha256')
+    .update(stableStringify({
+      identity: input.identity,
+      candidateIds: input.candidatePool.map(candidateId),
+      goals: input.goals,
+      count: input.count ?? null,
+      promptVersion: PROMPT_VERSION,
+      model: DEFAULT_MODEL,
+    }))
+    .digest('hex');
 }
 
 function deterministicFallback(input: GenerateRecommendationInput): LLMRecommendationResult {
@@ -156,7 +205,7 @@ function validateRecommendations(raw: RawLLMOutput, input: GenerateRecommendatio
 }
 
 function buildPrompt(input: GenerateRecommendationInput) {
-  const candidates = input.candidatePool.slice(0, 80).map((c) => ({
+  const candidates = input.candidatePool.slice(0, LLM_CANDIDATE_LIMIT).map((c) => ({
     id: candidateId(c),
     musicBrainzId: c.musicBrainzId,
     spotifyId: c.spotifyId,
@@ -216,6 +265,10 @@ export function resetGeminiQuota(): void {
 
 export function getGeminiCallStats(): { count: number; exhausted: boolean } {
   return { count: geminiCallCount, exhausted: geminiQuotaExhausted };
+}
+
+export function isGeminiQuotaExhausted(): boolean {
+  return geminiQuotaExhausted;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -291,7 +344,7 @@ async function callGemini(input: GenerateRecommendationInput): Promise<RawLLMOut
     },
   ];
 
-  const maxRetries = 2;
+  const maxRetries = 0;
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -301,9 +354,12 @@ async function callGemini(input: GenerateRecommendationInput): Promise<RawLLMOut
     }
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
           contents,
@@ -314,7 +370,7 @@ async function callGemini(input: GenerateRecommendationInput): Promise<RawLLMOut
             maxOutputTokens: 16384,
           },
         }),
-      });
+      }).finally(() => clearTimeout(timeout));
 
       if (res.status === 429 || res.status === 503) {
         const body = await res.text().catch(() => '');
@@ -357,18 +413,31 @@ export async function generateLLMRecommendations(
   input: GenerateRecommendationInput,
 ): Promise<LLMRecommendationResult> {
   if (!process.env.GEMINI_API_KEY) return deterministicFallback(input);
+  if (geminiQuotaExhausted) return deterministicFallback(input);
+
+  const cacheKey = recommendationCacheKey(input);
+  const cached = recommendationCache.get(cacheKey);
+  if (cached) {
+    return {
+      ...cached,
+      recommendations: cached.recommendations.map((rec) => ({ ...rec })),
+      validationErrors: [...cached.validationErrors],
+    };
+  }
 
   try {
     const first = await callGemini(input);
     const firstValidation = validateRecommendations(first, input);
     if (firstValidation.errors.length === 0) {
-      return {
+      const result = {
         recommendations: firstValidation.recommendations,
         model: DEFAULT_MODEL,
         promptVersion: PROMPT_VERSION,
         raw: first,
         validationErrors: [],
       };
+      recommendationCache.set(cacheKey, result);
+      return result;
     }
 
     try {
@@ -381,13 +450,15 @@ export async function generateLLMRecommendations(
       });
       const retryValidation = validateRecommendations(retry, input);
       if (retryValidation.errors.length === 0) {
-        return {
+        const result = {
           recommendations: retryValidation.recommendations,
           model: DEFAULT_MODEL,
           promptVersion: PROMPT_VERSION,
           raw: retry,
           validationErrors: firstValidation.errors,
         };
+        recommendationCache.set(cacheKey, result);
+        return result;
       }
       return {
         ...deterministicFallback(input),
