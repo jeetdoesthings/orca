@@ -225,13 +225,10 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
     set({
       frontierUniverse: universe,
       frontierNodes: filtered,
-      // Client last-resort remap can raise flags; never clear server-true flags here
-      shoreBucketFallback: meta.shoreBucketFallback
-        ? true
-        : get().shoreBucketFallback,
-      distanceVarianceCollapsed: meta.distanceVarianceCollapsed
-        ? true
-        : get().distanceVarianceCollapsed,
+      // Merge: server flags (from setReadinessPayload) OR client remap flags.
+      // Either source being true means the honesty banner should show.
+      shoreBucketFallback: get().shoreBucketFallback || meta.shoreBucketFallback,
+      distanceVarianceCollapsed: get().distanceVarianceCollapsed || meta.distanceVarianceCollapsed,
     });
   },
   setExplorationDepth: (depth) => {
@@ -249,12 +246,10 @@ export const useOrcaStore = create<OrcaStore>((set, get) => ({
     set({
       explorationDepth: depth,
       frontierNodes: filtered,
-      shoreBucketFallback: meta.shoreBucketFallback
-        ? true
-        : get().shoreBucketFallback,
-      distanceVarianceCollapsed: meta.distanceVarianceCollapsed
-        ? true
-        : get().distanceVarianceCollapsed,
+      // Only raise flags, never clear — server-true flags survive depth switches.
+      // Flags are cleared when setReadinessPayload arrives with server-false.
+      shoreBucketFallback: get().shoreBucketFallback || meta.shoreBucketFallback,
+      distanceVarianceCollapsed: get().distanceVarianceCollapsed || meta.distanceVarianceCollapsed,
     });
   },
   setFrontierNodes: (nodes) => {

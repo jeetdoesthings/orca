@@ -179,9 +179,13 @@ export function ensureDistanceSpread(
     for (const n of reachable) {
       occ[bandOf(n.expansionDistance as number)]++;
     }
-    if (occ.close === 0 || occ.far === 0 || occ.farther === 0) {
+    // Only remap when a *near* band (close or far) is empty.
+    // An empty "farther" band is normal — it means the user hasn't
+    // earned enough territory depth yet, not a distance signal bug.
+    // Remapping into farther when no candidates are genuinely distant
+    // would corrupt the natural distance distribution.
+    if (occ.close === 0 || occ.far === 0) {
       const counts = forceRankSpread(list);
-      // Empty exclusive band — primarily Close honesty (any empty band triggers)
       meta.shoreBucketFallback = occ.close === 0;
       meta.didRemap = true;
       meta.remappedCount = counts.remappedCount;
