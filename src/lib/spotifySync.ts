@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { fetchWithTimeout } from '@/lib/utils/fetch-timeout';
 import { normaliseGenre, GENRE_ANCHORS, latLngToXYZ, InternalGenre } from '@/lib/graph/genre-normaliser';
 import type { OrcaNode, OrcaEdge, AudioSignature } from '@/lib/graph/types';
 import { fetchLastFmArtistInfo, ICONIC_SEEDS } from './lastfm';
@@ -81,7 +82,7 @@ async function spotifyFetch(endpoint: string, token: string): Promise<any> {
   
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const makeRequest = async (retries = 2): Promise<any> => {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

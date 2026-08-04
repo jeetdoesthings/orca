@@ -1,4 +1,5 @@
 import { lastfmLimiter, spotifyLimiter } from './utils/rate-limiter';
+import { fetchWithTimeout } from './utils/fetch-timeout';
 
 // Audit fix M2: read the API key from env only. The former hardcoded dev key
 // ('607ad8…') was committed to the repo and is now rejected by Last.fm anyway.
@@ -74,7 +75,7 @@ async function lastFmFetch<T>(params: Record<string, string>): Promise<T> {
     format: 'json',
   });
 
-  const response = await fetch(`${BASE_URL}?${queryParams.toString()}`, {
+  const response = await fetchWithTimeout(`${BASE_URL}?${queryParams.toString()}`, {
     next: { revalidate: 60 * 60 * 24 }, // Cache API queries for 24 hours
   });
 
@@ -147,7 +148,7 @@ export async function getSpotifyToken(): Promise<string> {
     throw new Error('Spotify credentials missing in environment.');
   }
   const credentials = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64');
-  const res = await fetch('https://accounts.spotify.com/api/token', {
+  const res = await fetchWithTimeout('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -180,7 +181,7 @@ export async function fetchSpotifyArtist(name: string): Promise<{ popularity: nu
     // ORE/enrichment expansion paths).
     await spotifyLimiter.acquire();
     const searchParams = new URLSearchParams({ q: name, type: 'artist', limit: '1' });
-    const res = await fetch(`https://api.spotify.com/v1/search?${searchParams.toString()}`, {
+    const res = await fetchWithTimeout(`https://api.spotify.com/v1/search?${searchParams.toString()}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) return null;

@@ -7,6 +7,7 @@
  */
 
 import { deezerLimiter } from '@/lib/utils/rate-limiter';
+import { fetchWithTimeout } from '@/lib/utils/fetch-timeout';
 
 const DEEZER_BASE = 'https://api.deezer.com';
 
@@ -30,7 +31,7 @@ export interface DeezerArtistHit {
 async function deezerGet<T>(path: string): Promise<T | null> {
   await deezerLimiter.acquire();
   try {
-    const res = await fetch(`${DEEZER_BASE}${path}`, {
+    const res = await fetchWithTimeout(`${DEEZER_BASE}${path}`, {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return null;

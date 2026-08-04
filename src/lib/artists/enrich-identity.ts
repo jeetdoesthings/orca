@@ -11,6 +11,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { fetchWithTimeout } from '@/lib/utils/fetch-timeout';
 import {
   fetchLastFmArtistInfo,
   fetchSpotifyArtist,
@@ -111,7 +112,7 @@ async function fromSpotifyById(
 ): Promise<Partial<EnrichedIdentity> | null> {
   try {
     const token = await getSpotifyToken();
-    const res = await fetch(`https://api.spotify.com/v1/artists/${spotifyId}`, {
+    const res = await fetchWithTimeout(`https://api.spotify.com/v1/artists/${spotifyId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -228,7 +229,7 @@ async function fromLastFm(name: string): Promise<Partial<EnrichedIdentity> | nul
 async function fromDeezer(name: string): Promise<Partial<EnrichedIdentity> | null> {
   try {
     const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) return null;
     const data = await res.json();
     const item = data?.data?.[0];
@@ -311,7 +312,7 @@ async function fromMusicBrainzWiki(name: string): Promise<Partial<EnrichedIdenti
   try {
     await musicbrainzLimiter.acquire();
     const searchUrl = `https://musicbrainz.org/ws/2/artist/?query=artist:${encodeURIComponent(name)}&fmt=json`;
-    const searchRes = await fetch(searchUrl, {
+    const searchRes = await fetchWithTimeout(searchUrl, {
       headers: { 'User-Agent': 'MusicOrca/1.0.0 ( local-dev@musicorca.app )' },
     });
     if (!searchRes.ok) return null;
@@ -321,7 +322,7 @@ async function fromMusicBrainzWiki(name: string): Promise<Partial<EnrichedIdenti
 
     await musicbrainzLimiter.acquire();
     const detailsUrl = `https://musicbrainz.org/ws/2/artist/${artist.id}?inc=url-rels&fmt=json`;
-    const detailsRes = await fetch(detailsUrl, {
+    const detailsRes = await fetchWithTimeout(detailsUrl, {
       headers: { 'User-Agent': 'MusicOrca/1.0.0 ( local-dev@musicorca.app )' },
     });
     if (!detailsRes.ok) return null;
@@ -346,7 +347,7 @@ async function fromMusicBrainzWiki(name: string): Promise<Partial<EnrichedIdenti
         const wikiApiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&format=json&pithumbsize=320&origin=*`;
         // Audit fix H3: keep Wikipedia/Wikidata calls polite (shared bucket).
         await wikipediaLimiter.acquire();
-        const wikiRes = await fetch(wikiApiUrl);
+        const wikiRes = await fetchWithTimeout(wikiApiUrl);
         if (wikiRes.ok) {
           const wikiData = await wikiRes.json();
           const pages = wikiData?.query?.pages || {};
@@ -364,7 +365,7 @@ async function fromMusicBrainzWiki(name: string): Promise<Partial<EnrichedIdenti
       if (qid) {
         const wikidataApiUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${qid}&property=P18&format=json&origin=*`;
         await wikipediaLimiter.acquire();
-        const wdRes = await fetch(wikidataApiUrl);
+        const wdRes = await fetchWithTimeout(wikidataApiUrl);
         if (wdRes.ok) {
           const wdData = await wdRes.json();
           const fileName = wdData?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
@@ -388,7 +389,7 @@ async function fromWikipediaDirect(name: string): Promise<Partial<EnrichedIdenti
     const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(name + ' musician')}&gsrlimit=1&prop=pageimages&format=json&pithumbsize=320&origin=*`;
     // Audit fix H3: keep Wikipedia/Wikidata calls polite (shared bucket).
     await wikipediaLimiter.acquire();
-    const res = await fetch(wikiSearchUrl);
+    const res = await fetchWithTimeout(wikiSearchUrl);
     if (!res.ok) return null;
     const data = await res.json();
     const pages = data?.query?.pages || {};

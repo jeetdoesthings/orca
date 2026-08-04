@@ -44,6 +44,22 @@ export async function materializeWorldDeduped(
   const existing = inflight.get(userId);
   if (existing && !options.forceFresh) return existing;
 
+  if (existing && options.forceFresh) {
+    // Serialize: never run two materializations for the same user concurrently.
+    // Two concurrent full pipelines (each with 1rps external API limiters and
+    // hundreds of DB queries) saturate the connection pool and starve every
+    // other request — the server appears wedged. Wait for the in-flight run to
+    // settle, then start the fresh run for the new selection.
+    console.log(
+      `[MaterializeLock] ${userId} forceFresh queued behind in-flight run — serializing`,
+    );
+    try {
+      await existing;
+    } catch {
+      /* the fresh run below supersedes any failed prior run */
+    }
+  }
+
   const p = (async () => {
     const active = await prisma.user.findUnique({
       where: { spotifyId: userId },

@@ -1,5 +1,6 @@
 import type { RetrievedArtist, RetrievedArtistEvidence } from './types';
 import { musicbrainzLimiter } from '@/lib/utils/rate-limiter';
+import { fetchWithTimeout } from '@/lib/utils/fetch-timeout';
 
 const MB_BASE = 'https://musicbrainz.org/ws/2';
 const USER_AGENT = 'ORCA/1.0 (https://musicuniverse.local)';
@@ -31,7 +32,7 @@ async function mbFetch(path: string): Promise<MBSearchResponse | MBArtistDetail 
   // Audit fix H3: MusicBrainz asks for max ~1 rps; the shared token bucket
   // was previously never wired into this fetch.
   await musicbrainzLimiter.acquire();
-  const res = await fetch(`${MB_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${MB_BASE}${path}`, {
     headers: {
       Accept: 'application/json',
       'User-Agent': USER_AGENT,

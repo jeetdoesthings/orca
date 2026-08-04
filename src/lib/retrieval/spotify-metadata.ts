@@ -1,6 +1,7 @@
 import type { RetrievedArtist } from './types';
 import { prisma } from '@/lib/prisma';
 import { spotifyLimiter } from '@/lib/utils/rate-limiter';
+import { fetchWithTimeout } from '@/lib/utils/fetch-timeout';
 
 interface SpotifyArtistResult {
   id: string;
@@ -26,7 +27,7 @@ async function searchSpotifyArtist(
   for (let attempt = 0; attempt < 3; attempt++) {
     await spotifyLimiter.acquire();
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://api.spotify.com/v1/search?q=${encodeURIComponent(name)}&type=artist&limit=3`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
