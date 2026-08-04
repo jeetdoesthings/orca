@@ -185,7 +185,7 @@ export default function SelectArtistsPage() {
   useEffect(() => {
     async function fetchArtists() {
       try {
-        const res = await fetch('/api/artists');
+        const res = await fetch('/api/artists?demo=true');
         if (!res.ok) throw new Error('Failed to load artists');
         const data = await res.json();
         // Defensive dedupe (audit): the catalog may contain legacy duplicate
