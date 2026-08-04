@@ -46,7 +46,9 @@ function ConnectedArtistRow({ artist }: { artist: OrcaNode }) {
 
   useEffect(() => {
     if (!artist.imageUrl) {
-      fetch(`/api/orca/image?artist=${encodeURIComponent(artist.name)}`)
+      const suffix =
+        typeof window !== 'undefined' ? window.location.search : '';
+      fetch(`/api/orca/image?artist=${encodeURIComponent(artist.name)}${suffix ? '&' + suffix.substring(1) : ''}`)
         .then(res => {
           if (res.ok) return res.json();
           throw new Error('Failed');

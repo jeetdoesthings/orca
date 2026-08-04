@@ -21,7 +21,9 @@ function HoverAvatar({ artist, index }: { artist: OrcaNode; index: number }) {
 
   useEffect(() => {
     if (!artist.imageUrl) {
-      fetch(`/api/orca/image?artist=${encodeURIComponent(artist.name)}`)
+      const suffix =
+        typeof window !== 'undefined' ? window.location.search : '';
+      fetch(`/api/orca/image?artist=${encodeURIComponent(artist.name)}${suffix ? '&' + suffix.substring(1) : ''}`)
         .then(res => {
           if (res.ok) return res.json();
           throw new Error('Failed');
@@ -166,7 +168,9 @@ export function ArtistHoverCard() {
     }
 
     const controller = new AbortController();
-    fetch(`/api/orca/image?artist=${encodeURIComponent(activeNode.name)}`, { signal: controller.signal })
+    const suffix2 =
+      typeof window !== 'undefined' ? window.location.search : '';
+    fetch(`/api/orca/image?artist=${encodeURIComponent(activeNode.name)}${suffix2 ? '&' + suffix2.substring(1) : ''}`, { signal: controller.signal })
       .then(res => res.json())
       .then(data => {
         if (data.imageUrl) {
