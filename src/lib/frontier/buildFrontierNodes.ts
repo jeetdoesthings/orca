@@ -663,7 +663,14 @@ export async function buildFrontierNodes(
   // ── Stage 2: ORCA Candidate selection coordinate mapping ──
   console.log(`[CUB Frontier Layout] Generating candidate nodes for all ${candidateMap.size} candidates...`);
   const finalNodes: OrcaNode[] = [];
+  let nodeCount = 0;
   for (const [, { artist, adjacentTo }] of candidateMap) {
+    // Yield the event loop every 25 nodes so /api/auth/session and other
+    // routes get a tick during long materializations (~120+ candidates).
+    if (nodeCount > 0 && nodeCount % 25 === 0) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    nodeCount++;
     const normalisedGenre = normaliseGenre(artist.genres);
     const weight = 0.3;
     let [x, y, z] = computeNodeCoords(artist.id, normalisedGenre, weight);

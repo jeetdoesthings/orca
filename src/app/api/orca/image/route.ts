@@ -286,10 +286,14 @@ const inFlight = new Map<string, Promise<{ imageUrl: string; source: string } | 
 
 async function resolveWithCoalescing(
   artistName: string,
-  popularity: number
+  popularity: number,
+  isDemo: boolean = false
 ): Promise<{ imageUrl: string; source: string } | null> {
   const key = artistName.toLowerCase().trim();
   if (inFlight.has(key)) return inFlight.get(key)!;
+
+  // Preserve ?demo=true on proxied image URLs for the proxy auth gate
+  const searchDemo = isDemo ? '&demo=true' : '';
 
   const promise = (async () => {
     // 0. Local Artist catalog (fast path after backfill / materialize)
@@ -303,7 +307,7 @@ async function resolveWithCoalescing(
         select: { imageUrl: true },
       });
       if (row?.imageUrl && !isWeakImageUrl(row.imageUrl)) {
-        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(row.imageUrl)}`;
+        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(row.imageUrl)}${searchDemo}`;
         return { imageUrl: proxiedUrl, source: 'catalog' };
       }
     } catch {
@@ -324,7 +328,7 @@ async function resolveWithCoalescing(
           popularity: enr.popularity,
           spotifyId: enr.spotifyId,
         });
-        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(enr.imageUrl)}`;
+        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(enr.imageUrl)}${searchDemo}`;
         return {
           imageUrl: proxiedUrl,
           source: enr.sources[0] || 'enrich',
@@ -344,7 +348,7 @@ async function resolveWithCoalescing(
     for (const engine of engines) {
       const resolvedUrl = await resolveImageByEngine(engine, artistName);
       if (resolvedUrl) {
-        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(resolvedUrl)}`;
+        const proxiedUrl = `/api/orca/image-proxy?url=${encodeURIComponent(resolvedUrl)}${searchDemo}`;
         return { imageUrl: proxiedUrl, source: engine };
       }
     }
@@ -374,7 +378,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing ?artist= parameter' }, { status: 400 });
   }
 
-  const cacheKey = artist.toLowerCase().trim();
+  // Include demo/auth in cache key so demo and authenticated cached URLs don't collide
+  const cacheKey = `${isDemo ? 'demo' : 'auth'}:${artist.toLowerCase().trim()}`;
   const cached = imageCache.get(cacheKey);
   
   if (cached && cached.imageUrl) {
@@ -390,7 +395,7 @@ export async function GET(request: NextRequest) {
 
   const popularity = getCachedPopularity(artist);
 
-  const resolved = await resolveWithCoalescing(artist, popularity);
+  const resolved = await resolveWithCoalescing(artist, popularity, isDemo);
 
   if (resolved) {
     const result = {

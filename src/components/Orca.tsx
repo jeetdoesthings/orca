@@ -404,12 +404,23 @@ export function Orca() {
             layoutRef.current.tick();
           }
 
-          // Update positions
+          // Update genre centroids
           const currentGraphAfterMerge = useOrcaStore.getState().graph;
           if (currentGraphAfterMerge) {
             layoutRef.current.updateGenreCentroids(currentGraphAfterMerge);
           }
-          updatePositions(layoutRef.current.getPositions());
+
+          // Merge only NEW node positions into existing map — don't disturb existing nodes
+          const allPositions = layoutRef.current.getPositions();
+          const existingPositions = useOrcaStore.getState().nodePositions;
+          const merged = new Map(existingPositions);
+          const newIds = new Set(newNodes.map((n: any) => n.id));
+          for (const [id, pos] of allPositions) {
+            if (newIds.has(id)) {
+              merged.set(id, pos);
+            }
+          }
+          updatePositions(merged);
         }
       }
 
@@ -874,7 +885,17 @@ export function Orca() {
                   for (let i = 0; i < 60; i++) {
                     layoutRef.current.tick();
                   }
-                  currentStore.updatePositions(layoutRef.current.getPositions());
+                  // Merge only NEW node positions — don't disturb existing nodes
+                  const allPollPositions = layoutRef.current.getPositions();
+                  const existingPollPositions = currentStore.nodePositions;
+                  const mergedPoll = new Map(existingPollPositions);
+                  const newPollIds = new Set(nodesToAdd.map((n: any) => n.id));
+                  for (const [id, pos] of allPollPositions) {
+                    if (newPollIds.has(id)) {
+                      mergedPoll.set(id, pos);
+                    }
+                  }
+                  currentStore.updatePositions(mergedPoll);
                 }
 
                 // 5. Merge genre states (GIA reference stable merge)

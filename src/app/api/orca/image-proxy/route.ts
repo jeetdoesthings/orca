@@ -48,7 +48,8 @@ export function isAllowedDomain(urlStr: string): boolean {
 export async function GET(request: NextRequest) {
   // Require authentication (session or demo mode) to prevent open proxy abuse.
   const url = request.nextUrl;
-  const isDemo = url.searchParams.get('demo') === 'true';
+  const isDemo = url.searchParams.get('demo') === 'true' ||
+    (request.headers.get('referer') || '').includes('demo=true');
   if (isDemo) {
     const demoId = await resolveDemoUser();
     if (!demoId) {

@@ -206,9 +206,12 @@ export function NodeField() {
     };
   }, [gl.domElement, setPinnedNode, setFocusedNode]);
 
-  // Snapshot original positions as lat/lng
+  // Snapshot original positions as lat/lng — preserve existing entries so nodes
+  // don't drift when the positions Map is re-issued (e.g. after progressive expansion).
   useEffect(() => {
     if (!graph || positions.size === 0) return;
+    const prevOrig = originalLatLngs.current;
+    const prevCur = currentLatLngs.current;
     const origMap = new Map<string, { lat: number; lng: number }>();
     const curMap = new Map<string, { lat: number; lng: number }>();
     
@@ -219,23 +222,30 @@ export function NodeField() {
       }
       if (!pos) continue;
 
-      const ll = xyzToLatLng(pos[0], pos[1], pos[2]);
-      origMap.set(node.id, { ...ll });
+      // Preserve existing original lat/lng for nodes that already have one
+      const existingOrig = prevOrig.get(node.id);
+      if (existingOrig) {
+        origMap.set(node.id, { ...existingOrig });
+      } else {
+        const ll = xyzToLatLng(pos[0], pos[1], pos[2]);
+        origMap.set(node.id, { ...ll });
+      }
       
       // Preserve existing current position so it smoothly glides
-      const existingCur = currentLatLngs.current.get(node.id);
+      const existingCur = prevCur.get(node.id);
       if (existingCur) {
         curMap.set(node.id, { ...existingCur });
       } else {
+        const ll = xyzToLatLng(pos[0], pos[1], pos[2]);
         curMap.set(node.id, { ...ll });
       }
     }
     originalLatLngs.current = origMap;
     currentLatLngs.current = curMap;
 
-    // Initialize shared displaced positions
-    sharedDisplacedPositions.clear();
+    // Initialize shared displaced positions — only add entries for new nodes
     for (const node of allNodes) {
+      if (sharedDisplacedPositions.has(node.id)) continue;
       let pos = positions.get(node.id);
       if (!pos && node.x !== undefined && node.y !== undefined && node.z !== undefined) {
         pos = [node.x, node.y, node.z];

@@ -14,7 +14,6 @@ import { getGenreColor, normaliseGenre } from '@/lib/graph/genre-normaliser';
 import type { OrcaNode } from '@/lib/graph/types';
 import { sharedDisplacedPositions } from './NodeField';
 import { getCachedArtistData } from './ArtistImageLayer';
-import { translateSemanticRole } from '@/lib/product-language';
 
 function HoverAvatar({ artist, index }: { artist: OrcaNode; index: number }) {
   const [imageUrl, setImageUrl] = useState(artist.imageUrl || '');
@@ -336,26 +335,23 @@ export function ArtistHoverCard() {
           <div className="orca-hover-card-info" style={{ flex: 1 }}>
             <div className="orca-hover-card-name" style={{ fontSize: '13.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>{debouncedNode.name}</span>
-              {isFrontier && (() => {
-                const trans = translateSemanticRole(debouncedNode.semanticRole);
-                return (
-                  <span
-                    style={{
-                      fontSize: '9px',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      background: `${trans.badgeColor}18`,
-                      color: trans.badgeColor,
-                      border: `1px solid ${trans.badgeColor}33`,
-                    }}
-                  >
-                    {trans.label}
-                  </span>
-                );
-              })()}
+              {isFrontier && (
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: '#22c55e18',
+                    color: '#22c55e',
+                    border: '1px solid #22c55e33',
+                  }}
+                >
+                  Explore
+                </span>
+              )}
             </div>
 
             {/* Genre Pills */}

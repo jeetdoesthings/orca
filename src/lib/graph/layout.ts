@@ -179,6 +179,8 @@ export async function createLayout(
     // Apply gentle force toward genre centroid (same normalised key as seed)
     const strength = 0.008;
     for (const node of graph.nodes) {
+      // Skip frozen nodes (pinned by addNodes) so existing globe is stable
+      if (node.fx !== undefined) continue;
       const primary = normaliseGenre(node.genres?.length ? node.genres : ['pop']);
       const centroid = genreCentroids.get(primary);
       if (!centroid || centroid.count < 2) continue;
@@ -190,8 +192,10 @@ export async function createLayout(
   }
 
   // Project all nodes onto sphere after each tick
-  function projectAllToSphere() {
+  function projectAllToSphere(opts?: { skipFrozen?: boolean }) {
     for (const node of graph.nodes) {
+      // Skip frozen nodes (pinned by addNodes) so they don't shift
+      if (opts?.skipFrozen && node.fx !== undefined) continue;
       const [px, py, pz] = projectToSphere(
         node.x ?? 0, node.y ?? 0, node.z ?? 0, radius
       );
@@ -218,7 +222,7 @@ export async function createLayout(
       applyGenreClustering();
       simulation.alpha(Math.max(alpha, 0.005));
       simulation.tick();
-      projectAllToSphere();
+      projectAllToSphere({ skipFrozen: true });
       return true;
     },
 

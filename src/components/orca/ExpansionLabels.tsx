@@ -12,7 +12,6 @@ import * as THREE from 'three';
 import { useOrcaStore } from '@/store/orca';
 import { getGenreColor, normaliseGenre } from '@/lib/graph/genre-normaliser';
 import { sharedDisplacedPositions } from './NodeField';
-import { translateSemanticRole } from '@/lib/product-language';
 
 export function ExpansionLabels() {
   // TODO: Migrate Zustand store property frontierNodes to expansionNodes in a future cleanup.
@@ -109,7 +108,6 @@ export function ExpansionLabels() {
   return (
     <group>
       {labelsData.map(label => {
-        const translation = translateSemanticRole(label.semanticRole);
         return (
           <Html
             key={label.id}
@@ -173,16 +171,16 @@ export function ExpansionLabels() {
                   fontWeight: 700,
                   letterSpacing: '0.04em',
                   textTransform: 'uppercase',
-                  color: translation.badgeColor,
-                  background: `${translation.badgeColor}12`, // opacity background
-                  border: `1px solid ${translation.badgeColor}33`, // opacity border
+                  color: '#22c55e',
+                  background: '#22c55e12', // opacity background
+                  border: '1px solid #22c55e33', // opacity border
                   borderRadius: '100px',
                   padding: '1.5px 5px',
                   display: 'inline-flex',
                   alignItems: 'center',
                 }}
               >
-                ↳ {translation.label}
+                ↳ Explore
               </span>
             </div>
           </Html>
