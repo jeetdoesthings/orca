@@ -237,9 +237,10 @@ function OrcaScene({
 
     // Animate camera flight if not completed
     if (focus.elapsed < 1) {
-      const duration = 0.3; // Quick snap
+      const duration = 0.7; // Smooth pan
       focus.elapsed = Math.min(1, focus.elapsed + delta / duration);
-      const eased = focus.elapsed;
+      // Ease-out: start fast, decelerate into position
+      const eased = 1 - Math.pow(1 - focus.elapsed, 3);
 
       camera.position.lerpVectors(focus.start, focus.end, eased);
       if (focus.nodePosition && focus.isFocused) {
