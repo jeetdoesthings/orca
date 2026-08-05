@@ -237,18 +237,24 @@ function OrcaScene({
 
     // Animate camera flight if not completed
     if (focus.elapsed < 1) {
-      const duration = 0.8; // 800ms duration (within 600-1000ms range)
+      const duration = 1.4; // Smooth cinematic ease
       focus.elapsed = Math.min(1, focus.elapsed + delta / duration);
       
-      // Smooth cubic ease-out
-      const eased = 1 - Math.pow(1 - focus.elapsed, 3);
+      // Quadratic ease-in-out: smooth at both ends, no jerk
+      const t = focus.elapsed;
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
       camera.position.lerpVectors(focus.start, focus.end, eased);
-      // Look at the node when focused, at the globe center otherwise
+      // Smoothly interpolate lookAt between start target (origin) and node position
       if (focus.nodePosition && focus.isFocused) {
-        camera.lookAt(focus.nodePosition);
+        const lookTarget = new THREE.Vector3().lerpVectors(
+          new THREE.Vector3(0, 0, 0),
+          focus.nodePosition,
+          eased,
+        );
+        camera.lookAt(lookTarget);
         if (controlsRef.current) {
-          controlsRef.current.target.copy(focus.nodePosition);
+          controlsRef.current.target.copy(lookTarget);
           controlsRef.current.update();
         }
       } else {
