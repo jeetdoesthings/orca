@@ -31,7 +31,7 @@ function compactName(value: string): string {
 async function mbFetch(path: string): Promise<MBSearchResponse | MBArtistDetail | null> {
   // Audit fix H3: MusicBrainz asks for max ~1 rps; the shared token bucket
   // was previously never wired into this fetch.
-  await musicbrainzLimiter.acquire();
+  await musicbrainzLimiter.acquire(60_000);
   const res = await fetchWithTimeout(`${MB_BASE}${path}`, {
     headers: {
       Accept: 'application/json',

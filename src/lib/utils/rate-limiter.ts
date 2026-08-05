@@ -13,12 +13,12 @@ export class TokenBucketLimiter {
 
   /**
    * Acquire a token, waiting if necessary.
-   * @param timeoutMs - Max wait time. Throws after timeout if no token available.
-   *                   Default: 30000 (30s). Pass 0 for non-blocking (returns false).
+   * @param timeoutMs - Max wait time. Pass undefined to block indefinitely.
+   *                   Pass 0 for non-blocking (returns false).
    * @returns true if token acquired, false if timed out (when timeoutMs=0).
    * @throws Error if waited longer than timeoutMs.
    */
-  async acquire(timeoutMs: number = 30000): Promise<boolean> {
+  async acquire(timeoutMs?: number): Promise<boolean> {
     this.refill();
 
     if (this.tokens >= 1) {
@@ -32,12 +32,14 @@ export class TokenBucketLimiter {
     }
 
     const waitMs = ((1 - this.tokens) / this.refillRate) * 1000;
-    if (waitMs > timeoutMs) {
+    if (timeoutMs != null && waitMs > timeoutMs) {
       throw new Error(`Rate limit wait (${Math.round(waitMs)}ms) exceeds timeout (${timeoutMs}ms)`);
     }
 
     await new Promise(resolve => setTimeout(resolve, waitMs));
-    return this.acquire(timeoutMs - waitMs);
+    return timeoutMs != null
+      ? this.acquire(timeoutMs - waitMs)
+      : this.acquire();
   }
 
   private refill(): void {

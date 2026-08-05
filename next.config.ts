@@ -10,6 +10,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Pin Turbopack root to project dir. Stray /Users/jeet/package-lock.json
+  // otherwise makes Turbopack infer ~ as workspace root.
+  turbopack: {
+    root: process.cwd(),
+  },
   // Transpile Three.js ecosystem packages
   transpilePackages: [
     'three',

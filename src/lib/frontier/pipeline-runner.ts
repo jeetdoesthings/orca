@@ -232,6 +232,16 @@ export async function materializeWorld(
       where: { spotifyId: userId },
       data: { frontierStatus: 'FAILED' },
     });
+    // AbortError / TimeoutError are expected in long-running pipelines:
+    // rate limiters, external fetch timeouts, or the request context aborting.
+    // Don't re-throw — Next.js' dev error overlay would build stack traces in
+    // a hot loop (99% CPU, 35GB RAM) for every uncaught exception.
+    if (
+      error instanceof DOMException && error.name === 'AbortError' ||
+      error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
+    ) {
+      return { frontierNodes: [], worldState: await readWorldState(userId) };
+    }
     throw error;
   }
 }
