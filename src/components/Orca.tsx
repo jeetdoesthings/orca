@@ -152,7 +152,6 @@ function OrcaScene({
 
   const focusStateRef = useRef<{
     nodeId: string | null;
-    nodePosition: THREE.Vector3 | null;
     start: THREE.Vector3;
     end: THREE.Vector3;
     elapsed: number;
@@ -160,10 +159,9 @@ function OrcaScene({
     isFocused: boolean;
   }>({
     nodeId: null,
-    nodePosition: null,
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
-    elapsed: 1, // Start fully elapsed so no initial animation
+    elapsed: 1,
     previousPosition: new THREE.Vector3(),
     isFocused: false,
   });
@@ -209,13 +207,11 @@ function OrcaScene({
           }
 
           const direction = new THREE.Vector3(...nodePosition).normalize();
-          // Zoom in toward the node: use the tighter of (current distance) or
-          // the orbital minimum. Never push the camera OUT — always zoom IN.
+          // Only zoom IN, never push camera away from the node
           const currentDist = camera.position.length();
           const distance = Math.min(currentDist, minD);
 
           focus.nodeId = focusedNodeId;
-          focus.nodePosition = new THREE.Vector3(...nodePosition);
           focus.start.copy(camera.position);
           focus.end.copy(direction.multiplyScalar(distance));
           focus.elapsed = 0;
@@ -237,24 +233,15 @@ function OrcaScene({
 
     // Animate camera flight if not completed
     if (focus.elapsed < 1) {
-      const duration = 0.7; // Smooth pan
+      const duration = 0.8;
       focus.elapsed = Math.min(1, focus.elapsed + delta / duration);
-      // Ease-out: start fast, decelerate into position
       const eased = 1 - Math.pow(1 - focus.elapsed, 3);
 
       camera.position.lerpVectors(focus.start, focus.end, eased);
-      if (focus.nodePosition && focus.isFocused) {
-        camera.lookAt(focus.nodePosition);
-        if (controlsRef.current) {
-          controlsRef.current.target.copy(focus.nodePosition);
-          controlsRef.current.update();
-        }
-      } else {
-        camera.lookAt(0, 0, 0);
-        if (controlsRef.current) {
-          controlsRef.current.target.set(0, 0, 0);
-          controlsRef.current.update();
-        }
+      camera.lookAt(0, 0, 0);
+      if (controlsRef.current) {
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.update();
       }
     }
   });
