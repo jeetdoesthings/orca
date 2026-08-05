@@ -23,7 +23,7 @@ const globalForPrisma = global as unknown as GlobalPrisma;
  */
 function resolveDatabaseUrl(): string {
   if (process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0) {
-    const u = process.env.DATABASE_URL.trim();
+    let u = process.env.DATABASE_URL.trim();
     // Canonical local sqlite paths → prisma/dev.db
     if (
       u === 'file:./dev.db' ||
@@ -36,6 +36,13 @@ function resolveDatabaseUrl(): string {
     if (u.startsWith('file:./') || (u.startsWith('file:') && !u.startsWith('file:/'))) {
       const rel = u.replace(/^file:/, '').replace(/^\.\//, '');
       return `file:${path.join(process.cwd(), rel)}`;
+    }
+    // Postgres: cap the connection pool so a long-running pipeline can't
+    // monopolize every DB connection and block other API routes (session,
+    // artists, globe). 5 concurrent DB queries is plenty for a single-user
+    // app; the pipeline uses them one at a time internally.
+    if (u.startsWith('postgresql://') && !u.includes('connection_limit')) {
+      u += (u.includes('?') ? '&' : '?') + 'connection_limit=5&pool_timeout=5';
     }
     return u;
   }
