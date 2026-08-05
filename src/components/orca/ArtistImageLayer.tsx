@@ -145,7 +145,7 @@ function processLoadQueue(genreColorMap: Map<string, string>) {
       // Load the actual image entirely off the main thread to prevent UI freezing
       const loadUrl = imageUrl.startsWith('/api/') || imageUrl.startsWith('data:')
         ? imageUrl
-        : `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        : `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}&demo=true`;
 
       fetch(loadUrl)
         .then(r => r.blob())

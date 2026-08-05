@@ -73,7 +73,7 @@ function ArtistAvatar({ name, imageUrl }: { name: string; imageUrl: string }) {
   const [src, setSrc] = useState<string | null>(() => {
     if (!imageUrl) return null;
     if (imageUrl.startsWith('/api/')) return imageUrl;
-    return `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+    return `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}&demo=true`;
   });
   const [triedResolve, setTriedResolve] = useState(false);
 
@@ -94,7 +94,7 @@ function ArtistAvatar({ name, imageUrl }: { name: string; imageUrl: string }) {
     setSrc(
       imageUrl.startsWith('/api/')
         ? imageUrl
-        : `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}`,
+        : `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}&demo=true`,
     );
     setTriedResolve(false);
   }, [name, imageUrl]);

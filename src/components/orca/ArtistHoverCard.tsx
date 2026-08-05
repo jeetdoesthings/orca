@@ -43,7 +43,7 @@ function HoverAvatar({ artist, index }: { artist: OrcaNode; index: number }) {
   const displayImgUrl = imageUrl.startsWith('/api/') || imageUrl.startsWith('data:')
     ? imageUrl
     : imageUrl
-      ? `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}`
+      ? `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}&demo=true`
       : '';
 
   return (
@@ -155,7 +155,7 @@ export function ArtistHoverCard() {
     if (activeNode.imageUrl) {
       const proxiedUrl = activeNode.imageUrl.startsWith('/api/') || activeNode.imageUrl.startsWith('data:')
         ? activeNode.imageUrl
-        : `/api/orca/image-proxy?url=${encodeURIComponent(activeNode.imageUrl)}`;
+        : `/api/orca/image-proxy?url=${encodeURIComponent(activeNode.imageUrl)}&demo=true`;
       setImageUrl(proxiedUrl);
       return;
     }

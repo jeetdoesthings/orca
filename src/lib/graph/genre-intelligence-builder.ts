@@ -155,7 +155,7 @@ export function buildArtistSnapshot(
   // Handle Spotify CDN Proxying
   const rawImg = node.imageUrl || '';
   const imageUrl = rawImg
-    ? (rawImg.startsWith('/api/') || rawImg.startsWith('data:') ? rawImg : `/api/orca/image-proxy?url=${encodeURIComponent(rawImg)}`)
+    ? (rawImg.startsWith('/api/') || rawImg.startsWith('data:') ? rawImg : `/api/orca/image-proxy?url=${encodeURIComponent(rawImg)}&demo=true`)
     : '';
 
   const alreadyIntegrated = mem ? (mem.memoryState === 'INTERNALIZED' || mem.memoryStrength >= 0.7) : false;

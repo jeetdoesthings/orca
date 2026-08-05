@@ -66,7 +66,7 @@ function ConnectedArtistRow({ artist }: { artist: OrcaNode }) {
   const displayImgUrl = imageUrl.startsWith('/api/') || imageUrl.startsWith('data:')
     ? imageUrl
     : imageUrl
-      ? `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}`
+      ? `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}&demo=true`
       : '';
 
   return (
@@ -148,7 +148,7 @@ function AlbumArt({ imageUrl, name, genreColor }: { imageUrl: string; name: stri
   const src = imageUrl.startsWith('/api/') || imageUrl.startsWith('data:')
     ? imageUrl
     : imageUrl
-      ? `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}`
+      ? `/api/orca/image-proxy?url=${encodeURIComponent(imageUrl)}&demo=true`
       : '';
 
   if (error || !src) {
@@ -444,7 +444,7 @@ export function OrcaHUD() {
     if (pinnedNode.imageUrl) {
       return pinnedNode.imageUrl.startsWith('/api/') || pinnedNode.imageUrl.startsWith('data:')
         ? pinnedNode.imageUrl
-        : `/api/orca/image-proxy?url=${encodeURIComponent(pinnedNode.imageUrl)}`;
+        : `/api/orca/image-proxy?url=${encodeURIComponent(pinnedNode.imageUrl)}&demo=true`;
     }
     const cached = getCachedArtistData(pinnedNode.name);
     if (cached && cached.status === 'loaded' && cached.imageUrl) {
@@ -469,7 +469,7 @@ export function OrcaHUD() {
         if (data.imageUrl) {
           const proxied = data.imageUrl.startsWith('/api/') || data.imageUrl.startsWith('data:')
             ? data.imageUrl
-            : `/api/orca/image-proxy?url=${encodeURIComponent(data.imageUrl)}`;
+            : `/api/orca/image-proxy?url=${encodeURIComponent(data.imageUrl)}&demo=true`;
           setFetchedImageUrl(proxied);
           pinnedNode.imageUrl = proxied; // save on node
         }

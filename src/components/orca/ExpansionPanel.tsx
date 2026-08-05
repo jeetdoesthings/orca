@@ -178,7 +178,7 @@ export function ExpansionPanel({ onClose }: ExpansionPanelProps) {
 function artistImgSrc(url: string | null | undefined): string {
   if (!url) return '';
   if (url.startsWith('/api/') || url.startsWith('data:')) return url;
-  return `/api/orca/image-proxy?url=${encodeURIComponent(url)}`;
+  return `/api/orca/image-proxy?url=${encodeURIComponent(url)}&demo=true`;
 }
 
 function ExpansionArtistRow({ artist }: { artist: OrcaNode }) {
