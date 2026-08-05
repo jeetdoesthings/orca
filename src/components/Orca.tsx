@@ -152,6 +152,7 @@ function OrcaScene({
 
   const focusStateRef = useRef<{
     nodeId: string | null;
+    nodePosition: THREE.Vector3 | null;
     start: THREE.Vector3;
     end: THREE.Vector3;
     elapsed: number;
@@ -159,6 +160,7 @@ function OrcaScene({
     isFocused: boolean;
   }>({
     nodeId: null,
+    nodePosition: null,
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
     elapsed: 1, // Start fully elapsed so no initial animation
@@ -207,11 +209,13 @@ function OrcaScene({
           }
 
           const direction = new THREE.Vector3(...nodePosition).normalize();
-          const minFocus = isMobile ? 4.6 : 3.2;
-          const maxFocus = isMobile ? 6.6 : 5.2;
-          const distance = Math.max(minFocus, Math.min(maxFocus, camera.position.length()));
+          // Zoom in toward the node: use the tighter of (current distance) or
+          // the orbital minimum. Never push the camera OUT — always zoom IN.
+          const currentDist = camera.position.length();
+          const distance = Math.min(currentDist, minD);
 
           focus.nodeId = focusedNodeId;
+          focus.nodePosition = new THREE.Vector3(...nodePosition);
           focus.start.copy(camera.position);
           focus.end.copy(direction.multiplyScalar(distance));
           focus.elapsed = 0;
@@ -240,10 +244,19 @@ function OrcaScene({
       const eased = 1 - Math.pow(1 - focus.elapsed, 3);
 
       camera.position.lerpVectors(focus.start, focus.end, eased);
-      camera.lookAt(0, 0, 0);
-      if (controlsRef.current) {
-        controlsRef.current.target.set(0, 0, 0);
-        controlsRef.current.update();
+      // Look at the node when focused, at the globe center otherwise
+      if (focus.nodePosition && focus.isFocused) {
+        camera.lookAt(focus.nodePosition);
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(focus.nodePosition);
+          controlsRef.current.update();
+        }
+      } else {
+        camera.lookAt(0, 0, 0);
+        if (controlsRef.current) {
+          controlsRef.current.target.set(0, 0, 0);
+          controlsRef.current.update();
+        }
       }
     }
   });
