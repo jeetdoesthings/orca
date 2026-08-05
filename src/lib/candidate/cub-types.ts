@@ -106,6 +106,12 @@ export interface Candidate {
   sourceTerritory?: string;
   /** @deprecated use sourceTerritory */
   source_territory?: string;
+  /** Spotify artist ID (empty for MusicBrainz-only artists). */
+  spotifyId?: string;
+  /** MusicBrainz artist UUID. */
+  musicBrainzId?: string;
+  /** Provider availability flags. */
+  availability?: { spotify: boolean };
 }
 
 export interface CandidateUniverse {

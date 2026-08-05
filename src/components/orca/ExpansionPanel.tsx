@@ -224,8 +224,12 @@ function ExpansionArtistRow({ artist }: { artist: OrcaNode }) {
     // 1. Optimistic transition
     transitionNodeToExplored(artist.id);
     
-    // Open Spotify Search tab with the artist name
-    window.open(`https://open.spotify.com/search/${encodeURIComponent(artist.name)}`, '_blank');
+    // Open Spotify if available, else YouTube for MusicBrainz-only artists
+    if (artist.externalUrl) {
+      window.open(artist.externalUrl, '_blank');
+    } else {
+      window.open(`https://open.spotify.com/search/${encodeURIComponent(artist.name)}`, '_blank');
+    }
 
     try {
       // 2. Persist in database

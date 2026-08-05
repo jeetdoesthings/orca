@@ -393,8 +393,13 @@ export class MusicBrainzProvider implements RetrievalProvider {
       const relations = detailsData?.relations || [];
 
       const candidates: ORECandidate[] = [];
+      const relevantTypes = new Set([
+        'collaboration', 'member of group', 'subgroup',
+        'related-to', 'performed-with', 'tribute', 'collaborator',
+        'associated with', 'involved with', 'supporting musician',
+      ]);
       for (const rel of relations) {
-        if (rel.artist && (rel.type === 'collaboration' || rel.type === 'member of group' || rel.type === 'subgroup')) {
+        if (rel.artist && rel.type && relevantTypes.has(rel.type)) {
           const relArtist = rel.artist;
           candidates.push({
             artistId: relArtist.id,

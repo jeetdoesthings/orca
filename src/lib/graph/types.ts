@@ -50,6 +50,13 @@ export interface OrcaNode {
     | 'tag_inferred'
     | 'cold_start_default';
 
+  /** Spotify artist ID (22-char base62). Empty for MusicBrainz-only artists. */
+  spotifyId?: string;
+  /** MusicBrainz artist UUID (36-char). */
+  musicBrainzId?: string;
+  /** External URL for artists not on Spotify (e.g. YouTube search). */
+  externalUrl?: string;
+
   // Phase 3 Layer 3 weight components
   weightShort?: number;
   weightMedium?: number;

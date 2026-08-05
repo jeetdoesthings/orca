@@ -321,8 +321,12 @@ export function OrcaHUD() {
     transitionNodeToExplored(node.id);
     
     if (action === 'add-to-spotify') {
-      // Open Spotify Search tab with the artist name
-      window.open(`https://open.spotify.com/search/${encodeURIComponent(node.name)}`, '_blank');
+      // Open Spotify if available, else YouTube for MusicBrainz-only artists
+      if (node.externalUrl) {
+        window.open(node.externalUrl, '_blank');
+      } else {
+        window.open(`https://open.spotify.com/search/${encodeURIComponent(node.name)}`, '_blank');
+      }
     }
 
     try {

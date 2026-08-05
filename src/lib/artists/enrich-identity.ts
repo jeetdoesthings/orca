@@ -261,8 +261,9 @@ export async function persistArtistImageAndGenres(input: {
   genres?: string[];
   popularity?: number;
   spotifyId?: string;
+  musicBrainzId?: string;
 }): Promise<void> {
-  if (!input.imageUrl && (!input.genres || input.genres.length === 0)) return;
+  if (!input.imageUrl && (!input.genres || input.genres.length === 0) && !input.musicBrainzId) return;
   const norm = normalizeArtistName(input.name);
   try {
     const existing = await prisma.artist.findFirst({
@@ -273,7 +274,7 @@ export async function persistArtistImageAndGenres(input: {
           { normalizedName: norm },
         ],
       },
-      select: { id: true, imageUrl: true, rawGenres: true },
+      select: { id: true, imageUrl: true, rawGenres: true, metadata: true },
     });
     if (!existing) return;
 
@@ -281,6 +282,7 @@ export async function persistArtistImageAndGenres(input: {
       imageUrl?: string | null;
       rawGenres?: string;
       popularity?: number;
+      metadata?: string;
     } = {};
     if (input.imageUrl && !isWeakImageUrl(input.imageUrl)) {
       if (isWeakImageUrl(existing.imageUrl)) {
@@ -300,6 +302,17 @@ export async function persistArtistImageAndGenres(input: {
     }
     if (input.popularity != null && input.popularity > 0) {
       data.popularity = input.popularity;
+    }
+    // Persist musicBrainzId into the metadata JSON column (stable, never changes)
+    if (input.musicBrainzId) {
+      let meta: Record<string, unknown> = {};
+      try {
+        meta = existing.metadata ? JSON.parse(existing.metadata) : {};
+      } catch { /* use empty */ }
+      if (!meta.musicBrainzId || meta.musicBrainzId !== input.musicBrainzId) {
+        meta.musicBrainzId = input.musicBrainzId;
+        data.metadata = JSON.stringify(meta);
+      }
     }
     if (Object.keys(data).length === 0) return;
     await prisma.artist.update({ where: { id: existing.id }, data });

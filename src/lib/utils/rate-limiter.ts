@@ -50,10 +50,49 @@ export class TokenBucketLimiter {
   }
 }
 
+/**
+ * Round-robin rate limiter across multiple identical token buckets.
+ * With N buckets at 1 rps each, effective throughput is N rps.
+ */
+export class MultiKeyLimiter {
+  private buckets: TokenBucketLimiter[];
+  private next = 0;
+
+  constructor(count: number, rps: number) {
+    this.buckets = Array.from({ length: count }, () => new TokenBucketLimiter(1, rps));
+  }
+
+  /** Acquire a token from the next bucket in round-robin order. */
+  async acquire(timeoutMs?: number): Promise<boolean> {
+    const idx = this.next;
+    this.next = (this.next + 1) % this.buckets.length;
+    return this.buckets[idx].acquire(timeoutMs);
+  }
+
+  get bucketCount(): number {
+    return this.buckets.length;
+  }
+}
+
+/** Return configured MusicBrainz API keys. Empty array = anonymous (1 rps). */
+export function getMusicBrainzApiKeys(): string[] {
+  return [
+    process.env.MUSICBRAINZ_API_KEY_1,
+    process.env.MUSICBRAINZ_API_KEY_2,
+    process.env.MUSICBRAINZ_API_KEY_3,
+    process.env.MUSICBRAINZ_API_KEY_4,
+  ].filter((k): k is string => Boolean(k));
+}
+
+function createMusicBrainzLimiter(): MultiKeyLimiter {
+  return new MultiKeyLimiter(getMusicBrainzApiKeys().length || 1, 1);
+}
+
 // Instantiate rate limiters in accordance with Section 6 of Production technical specs
 export const spotifyLimiter = new TokenBucketLimiter(3, 3);
 export const lastfmLimiter = new TokenBucketLimiter(5, 5);
-export const musicbrainzLimiter = new TokenBucketLimiter(1, 1);
+/** MusicBrainz multi-key round-robin: use up to 4 API keys for 4 rps effective throughput. */
+export const musicbrainzLimiter = createMusicBrainzLimiter();
 export const discogsLimiter = new TokenBucketLimiter(1, 1);
 /** Deezer public API — conservative bucket (no official hard limit documented). */
 export const deezerLimiter = new TokenBucketLimiter(5, 5);

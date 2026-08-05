@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import type { Candidate } from '@/lib/candidate/cub-types';
 import type { TasteIdentity } from '@/lib/identity/orca-identity';
 import { normaliseGenreOrUnknown } from '@/lib/graph/genre-normaliser';
-import { searchMusicBrainzArtist } from './musicbrainz';
+import { searchAndLoadMusicBrainzArtist, resolveCanonicalMBId } from './musicbrainz';
 import { enrichRetrievedArtistsWithSpotify } from './spotify-metadata';
 import type { RetrievedArtist, RetrievalPoolResult } from './types';
 
@@ -29,6 +29,9 @@ function retrievedToCandidate(artist: RetrievedArtist): Candidate {
     genres: genres.length > 0 ? genres : ['unknown'],
     popularity: artist.popularity ?? 45,
     imageUrl: '',
+    spotifyId: artist.spotifyId,
+    musicBrainzId: artist.musicBrainzId,
+    availability: artist.availability,
     discoveryContext: {
       growthOpportunity: normaliseGenreOrUnknown(genres) || 'unknown',
       relationshipStage: 'LLM_GROUNDED',
@@ -95,7 +98,7 @@ export async function retrieveCandidatePool(
   identity: TasteIdentity,
   accessToken: string,
   seedCandidates: Candidate[] = [],
-  limit = 120,
+  limit = 300,
 ): Promise<RetrievalPoolResult> {
   const knownNames = new Set([
     ...identity.integratedArtists.map((a) => nameKey(a.name)),
@@ -111,11 +114,20 @@ export async function retrieveCandidatePool(
     ...identity.rejectedArtists.map((a) => nameKey(a.name)),
   ]);
 
+  // Track MB IDs to deduplicate
+  const seenMBIds = new Set<string>();
+
   const byName = new Map<string, RetrievedArtist>();
   const add = (artist: RetrievedArtist) => {
     const key = nameKey(artist.canonicalName);
     const id = artist.spotifyId || artist.musicBrainzId;
     if (!key || knownNames.has(key) || blockedNames.has(key) || (id && blockedIds.has(id))) return;
+
+    // Deduplicate by MusicBrainz ID
+    const canonicalMBId = artist.musicBrainzId ? resolveCanonicalMBId(artist.musicBrainzId) : undefined;
+    if (canonicalMBId && seenMBIds.has(canonicalMBId)) return;
+    if (canonicalMBId) seenMBIds.add(canonicalMBId);
+
     const prev = byName.get(key);
     if (!prev || (artist.evidence[0]?.confidence ?? 0) > (prev.evidence[0]?.confidence ?? 0)) {
       byName.set(key, artist);
@@ -165,44 +177,47 @@ export async function retrieveCandidatePool(
         sourceEvidence: true,
         metadata: true,
       },
-      take: Math.max(40, limit - byName.size),
+      take: Math.max(80, limit - byName.size),
       orderBy: { popularity: 'desc' },
     });
     for (const row of rows) add(localArtistToRetrieved(row));
   }
 
-  const mbSeeds = identity.integratedArtists.slice(0, 8);
+  // MusicBrainz deep retrieval: search+load full relationships for up to 20 integrated seeds
+  const mbSeeds = identity.integratedArtists.slice(0, 20);
   for (const seed of mbSeeds) {
     if (byName.size >= limit) break;
     try {
-      const mb = await searchMusicBrainzArtist(seed.name);
+      const mb = await searchAndLoadMusicBrainzArtist(seed.name);
       if (mb) {
+        // Add the related artists from MB
         for (const rel of mb.relationships) {
           if (byName.size >= limit) break;
-          const related = rel.artistId
-            ? {
-                canonicalName: rel.artistName,
-                musicBrainzId: rel.artistId,
-                aliases: [],
-                genres: mb.genres,
-                tags: mb.tags,
-                releases: [],
-                relationships: [{ type: rel.type, artistName: seed.name, artistId: seed.id }],
-                popularity: undefined,
-                availability: { spotify: false },
-                evidence: [
-                  {
-                    source: 'musicbrainz' as const,
-                    id: rel.artistId,
-                    confidence: 0.82,
-                    note: `MusicBrainz ${rel.type} relation from ${seed.name}`,
-                  },
-                ],
-                retrievalPath: 'adjacency' as const,
-                sourceTerritory: mb.genres[0],
-              }
-            : null;
-          if (related) add(related);
+          if (!rel.artistId || !rel.artistName) continue;
+          const related: RetrievedArtist = {
+            canonicalName: rel.artistName,
+            musicBrainzId: rel.artistId,
+            aliases: [],
+            genres: mb.genres,
+            tags: mb.tags,
+            releases: [],
+            relationships: [
+              { type: rel.type, artistName: seed.name, artistId: seed.id },
+            ],
+            popularity: undefined,
+            availability: { spotify: false },
+            evidence: [
+              {
+                source: 'musicbrainz' as const,
+                id: rel.artistId,
+                confidence: 0.82,
+                note: `MusicBrainz ${rel.type} relation from ${seed.name}`,
+              },
+            ],
+            retrievalPath: 'adjacency' as const,
+            sourceTerritory: mb.genres[0],
+          };
+          add(related);
         }
       }
     } catch {
@@ -211,6 +226,28 @@ export async function retrieveCandidatePool(
   }
 
   const artists = await enrichRetrievedArtistsWithSpotify(Array.from(byName.values()), accessToken);
+
+  // Detect and register MB duplicates: artists with same display name but different MB IDs
+  const nameToMBIds = new Map<string, string[]>();
+  for (const a of artists) {
+    if (!a.musicBrainzId) continue;
+    const key = nameKey(a.canonicalName);
+    const ids = nameToMBIds.get(key) || [];
+    ids.push(a.musicBrainzId);
+    nameToMBIds.set(key, ids);
+  }
+  for (const [, ids] of nameToMBIds) {
+    if (ids.length > 1) {
+      const canonical = ids[0];
+      for (let i = 1; i < ids.length; i++) {
+        // Dynamic import to avoid circular deps
+        import('./musicbrainz').then(({ registerMBDuplicate }) => {
+          registerMBDuplicate(ids[i], canonical);
+        });
+      }
+    }
+  }
+
   return {
     artists: artists.slice(0, limit),
     candidates: artists.slice(0, limit).map(retrievedToCandidate),

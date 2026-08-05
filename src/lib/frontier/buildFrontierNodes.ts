@@ -471,7 +471,7 @@ export async function buildFrontierNodes(
   const shouldSkipLLM = options?.skipOcse || !process.env.GEMINI_API_KEY || isGeminiQuotaExhausted();
   const llm = shouldSkipLLM
     ? {
-        recommendations: retrieval.candidates.slice(0, 120).map((c, i) => ({
+        recommendations: retrieval.candidates.slice(0, 300).map((c, i) => ({
           artistId: c.artistId,
           artist: c.name,
           rank: i + 1,
@@ -501,7 +501,7 @@ export async function buildFrontierNodes(
           'Prefer grounded gateway artists over isolated clones.',
         ],
         candidatePool: retrieval.artists,
-        count: 120,
+        count: 300,
       });
 
   const verified = await groundLLMRecommendations({
@@ -869,6 +869,14 @@ export async function buildFrontierNodes(
       imageUrl,
       weight,
       state: 'frontier',
+      // Provider IDs — determine external URL for non-Spotify artists
+      spotifyId: candidateForNode?.spotifyId
+        || (artist.id.length === 22 && !artist.id.includes('-') ? artist.id : undefined),
+      musicBrainzId: candidateForNode?.musicBrainzId
+        || (artist.id.includes('-') && artist.id.length >= 36 ? artist.id : undefined),
+      externalUrl: (candidateForNode?.availability?.spotify === false || !candidateForNode?.spotifyId)
+        ? `https://www.youtube.com/results?search_query=${encodeURIComponent(artist.name + ' artist')}`
+        : undefined,
       audioSignature: signature,
       audioSource,
       confidenceTag,
@@ -1041,6 +1049,7 @@ export async function buildFrontierNodes(
                 genres: n.genres,
                 popularity: n.popularity,
                 spotifyId: enr.spotifyId,
+                musicBrainzId: n.musicBrainzId,
               });
             } catch {
               /* per-artist isolation */

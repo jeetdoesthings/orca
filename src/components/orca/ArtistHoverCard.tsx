@@ -253,9 +253,13 @@ export function ArtistHoverCard() {
 
       if (!res.ok) throw new Error('API exploration failed');
 
-      // 3. Open Spotify in new tab if selected
+      // 3. Open Spotify if available, else YouTube for MusicBrainz-only artists
       if (action === 'add-to-spotify') {
-        window.open(`https://open.spotify.com/search/${encodeURIComponent(debouncedNode.name)}`, '_blank');
+        if (debouncedNode.externalUrl) {
+          window.open(debouncedNode.externalUrl, '_blank');
+        } else {
+          window.open(`https://open.spotify.com/search/${encodeURIComponent(debouncedNode.name)}`, '_blank');
+        }
       }
 
       setExploreStatus('done');

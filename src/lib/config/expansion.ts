@@ -57,7 +57,7 @@ export const ExpansionConfig = {
     appetite: 0.5,
   },
   /** Min frontier candidates after CUB (catalog fill if short). */
-  minFrontierCandidates: 80,
+  minFrontierCandidates: 150,
 
   // ── Part 2: prior incidental Familiarity ────────────────────────────
   priorFamiliarityK: 5,
@@ -81,7 +81,7 @@ export const ExpansionConfig = {
   coldStart: {
     minIdentityArtists: 5,
     minListeningEvents: 10,
-    minFrontierCandidates: 120,
+    minFrontierCandidates: 200,
     /**
      * Established users: prefer high/partial completeness; may soft-drop low.
      */
